@@ -19,7 +19,9 @@
   "dependencies": {
     "@alch/alchemy-web3": "^1.1.8",
     "axios": "^0.24.0",
+    "dotenv": "^11.0.0",
     "ethereum-block-by-date": "^1.4.2",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "faunadb": "^4.4.1"
   }
 }

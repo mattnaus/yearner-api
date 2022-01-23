@@ -1,0 +1,60 @@
+Arguments: 
+  /usr/local/bin/node /usr/local/Cellar/yarn/1.22.10/libexec/bin/yarn.js add faunadb: ^4.4.1,
+
+PATH: 
+  /usr/local/Cellar/node/6.7.0/lib/node_modules/vue-cli/bin:/usr/local/php5-7.2.21-20190811-210031/bin:/Users/mattijsnaus/.rvm/gems/ruby-2.3.0/bin:/Users/mattijsnaus/.rvm/gems/ruby-2.3.0@global/bin:/Users/mattijsnaus/.rvm/rubies/ruby-2.3.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/go/bin:/Library/Apple/usr/bin:/Users/mattijsnaus/.rvm/bin:/Users/mattijsnaus/.rvm/bin
+
+Yarn version: 
+  1.22.10
+
+Node version: 
+  15.11.0
+
+Platform: 
+  darwin x64
+
+Trace: 
+  Error: Invalid URL
+      at module.exports.module.exports (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:71821:9)
+      at urlParts (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:31614:75)
+      at NpmRegistry.isRequestToRegistry (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:31657:19)
+      at NpmRegistry.<anonymous> (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:31689:31)
+      at Generator.next (<anonymous>)
+      at step (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:310:30)
+      at /usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:328:14
+      at new Promise (<anonymous>)
+      at new F (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:5301:28)
+      at NpmRegistry.<anonymous> (/usr/local/Cellar/yarn/1.22.10/libexec/lib/cli.js:307:12)
+
+npm manifest: 
+  {
+    "name": "ethian-api",
+    "version": "1.0.0",
+    "description": "",
+    "main": "app.js",
+    "scripts": {
+      "start": "node app.js"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://mattnaus@github.com/mattnaus/ethian-api.git"
+    },
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+      "url": "https://github.com/mattnaus/ethian-api/issues"
+    },
+    "homepage": "https://github.com/mattnaus/ethian-api#readme",
+    "dependencies": {
+      "@alch/alchemy-web3": "^1.1.8",
+      "axios": "^0.24.0",
+      "ethereum-block-by-date": "^1.4.2",
+      "express": "^4.17.1"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
