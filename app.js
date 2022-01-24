@@ -47,18 +47,37 @@ app.get("/", async (req, res) => {
                     ")"
             );
 
-            let returnObj = await axios({
-                method: "get",
-                url: "https://api.etherscan.io/api",
-                params: {
-                    module: "contract",
-                    action: "getabi",
-                    address: fund.data.contract,
-                    apikey: "***REMOVED***",
-                },
-            });
+            let contractABI = "";
 
-            let contractABI = JSON.parse(returnObj.data.result);
+            // If there's no ABI stored for this contract, let's sort that out
+            if (!fund.data.hasOwnProperty("ABI")) {
+                console.log("No ABI stored for contract, fixing...");
+                let returnObj = await axios({
+                    method: "get",
+                    url: "https://api.etherscan.io/api",
+                    params: {
+                        module: "contract",
+                        action: "getabi",
+                        address: fund.data.contract,
+                        apikey: "***REMOVED***",
+                    },
+                });
+
+                contractABI = JSON.parse(returnObj.data.result);
+
+                try {
+                    let returnObjCreateWallet = await client.query(
+                        q.Update(fund.ref, {
+                            data: {
+                                ABI: contractABI,
+                            },
+                        })
+                    );
+                } catch (error) {}
+            } else {
+                console.log("Using stored ABI for contract.");
+                contractABI = fund.data.ABI;
+            }
 
             const instance = new web3.eth.Contract(contractABI, contract);
 
@@ -78,7 +97,7 @@ app.get("/", async (req, res) => {
             let today = new Date();
             let d = new Date(block.timestamp * 1000);
             if (fund.data.hasOwnProperty("lastUpdate")) {
-                d = new Date(2022, 0, 10);
+                d = new Date(2022, 1, 10);
             }
             let dates = [];
 
