@@ -22,7 +22,7 @@ const dater = new EthDater(
     web3 // Web3 object, required.
 );
 
-app.get("/", async (req, res) => {
+app.get("/update", async (req, res) => {
     // grab all funds
     let returnObjFaunaGetFunds;
     try {
@@ -179,6 +179,39 @@ app.get("/", async (req, res) => {
     }
 
     res.send("Hello World!");
+});
+
+app.get("/funds", async (req, res) => {
+    // grab all funds
+    let returnObjFaunaGetFunds;
+    try {
+        returnObjFaunaGetFunds = await client.query(
+            q.Map(
+                q.Paginate(q.Match(q.Index("all_funds"))),
+                q.Lambda("x", q.Get(q.Var("x")))
+            )
+        );
+    } catch (error) {
+        console.log(error);
+    }
+
+    let funds = [];
+
+    if (returnObjFaunaGetFunds.data.length !== 0) {
+        for (fund of returnObjFaunaGetFunds.data) {
+            if (fund.data.hasOwnProperty("lastUpdate")) {
+                console.log(fund);
+                let tempFund = {};
+                tempFund.name = fund.data.name;
+                tempFund.contract = fund.data.contract;
+                tempFund.activationBlock = fund.data.activationBlock;
+                tempFund.lastUpdate = fund.data.lastUpdate;
+                funds.push(tempFund);
+            }
+        }
+    }
+
+    res.send(funds);
 });
 
 app.listen(port, () =>
