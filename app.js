@@ -39,7 +39,7 @@ app.get("/", async (req, res) => {
     if (returnObjFaunaGetFunds.data.length !== 0) {
         for (let fund of returnObjFaunaGetFunds.data) {
             console.log(
-                "Processing contract " +
+                "-- Processing contract " +
                     fund.data.name +
                     " (" +
                     fund.data.contract +
@@ -50,7 +50,7 @@ app.get("/", async (req, res) => {
 
             // If there's no ABI stored for this contract, let's sort that out
             if (!fund.data.hasOwnProperty("ABI")) {
-                console.log("No ABI stored for contract, fixing...");
+                console.log("-- No ABI stored for contract, fixing...");
                 let returnObj = await axios({
                     method: "get",
                     url: "https://api.etherscan.io/api",
@@ -65,7 +65,7 @@ app.get("/", async (req, res) => {
                 contractABI = JSON.parse(returnObj.data.result);
 
                 try {
-                    let returnObjCreateWallet = await client.query(
+                    let returnObjSaveABI = await client.query(
                         q.Update(fund.ref, {
                             data: {
                                 ABI: contractABI,
@@ -74,7 +74,7 @@ app.get("/", async (req, res) => {
                     );
                 } catch (error) {}
             } else {
-                console.log("Using stored ABI for contract.");
+                console.log("-- Using stored ABI for contract.");
                 contractABI = fund.data.ABI;
             }
 
@@ -83,26 +83,53 @@ app.get("/", async (req, res) => {
                 fund.data.contract
             );
 
-            const activation = await instance.methods.activation().call();
-            const date = new Date(activation * 1000);
+            // if there's no activation data, let's sort that out
+            let block;
+            if (!fund.data.hasOwnProperty("activationStamp")) {
+                console.log(
+                    "-- no activation data, pulling from chain and saving... "
+                );
+                const activation = await instance.methods.activation().call();
+                const date = new Date(activation * 1000);
 
-            let block = await dater.getDate(date, true);
+                block = await dater.getDate(date, true);
 
-            console.log(block);
+                try {
+                    let returnObjSaveActivation = await client.query(
+                        q.Update(fund.ref, {
+                            data: {
+                                activationStamp: activation,
+                                activationBlock: block,
+                            },
+                        })
+                    );
+                } catch (error) {}
+            } else {
+                console.log("-- activation data present, using saved data.");
+                block = fund.data.activationBlock;
+            }
 
             const perShare = await instance.methods
                 .pricePerShare()
                 .call(undefined, block.block);
 
-            console.log(perShare);
-
             let today = new Date();
             let d = new Date(block.timestamp * 1000);
             if (fund.data.hasOwnProperty("lastUpdate")) {
-                d = new Date(2022, 1, 10);
+                let dateSplit = fund.data.lastUpdate.split("-");
+
+                d = new Date(
+                    Date.UTC(
+                        Number(dateSplit[0]),
+                        Number(dateSplit[1] - 1),
+                        Number(dateSplit[2]) + 1
+                    )
+                );
+                console.log("-- picking up at date: " + d, dateSplit);
             }
             let dates = [];
 
+            // loop from d until today
             for (d; d <= today; d.setDate(d.getDate() + 1)) {
                 let block = await dater.getDate(d, true);
                 let perShare = await instance.methods
@@ -111,14 +138,17 @@ app.get("/", async (req, res) => {
 
                 // date handling
                 let dString = d.getFullYear() + "-";
-                if (d.getMonth() < 10) dString += "0" + d.getMonth();
-                else dString += d.getMonth();
+                if (d.getMonth() < 10) {
+                    dString += "0" + (d.getMonth() + 1);
+                } else {
+                    dString += d.getMonth() + 1;
+                }
                 dString += "-";
                 if (d.getDate() < 10) dString += "0" + d.getDate();
                 else dString += d.getDate();
 
                 let perShareEth = web3.utils.fromWei(perShare, "ether");
-                console.log(dString, perShareEth);
+                console.log("-- " + dString, block.block, perShareEth);
 
                 // add entry to database
                 let returnObjFaunaAddHistory;
@@ -138,7 +168,11 @@ app.get("/", async (req, res) => {
             }
 
             console.log(
-                "Done with " + fund.data.name + " (" + fund.data.contract + ")"
+                "-- Done with " +
+                    fund.data.name +
+                    " (" +
+                    fund.data.contract +
+                    ")"
             );
             console.log("------------");
         }
