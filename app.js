@@ -12,7 +12,6 @@ const port = process.env.PORT || 3000;
 const web3 = createAlchemyWeb3(
     "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***"
 );
-const contract = "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A";
 
 const q = fauna.query;
 const client = new fauna.Client({
@@ -79,7 +78,10 @@ app.get("/", async (req, res) => {
                 contractABI = fund.data.ABI;
             }
 
-            const instance = new web3.eth.Contract(contractABI, contract);
+            const instance = new web3.eth.Contract(
+                contractABI,
+                fund.data.contract
+            );
 
             const activation = await instance.methods.activation().call();
             const date = new Date(activation * 1000);
@@ -114,7 +116,25 @@ app.get("/", async (req, res) => {
                 dString += "-";
                 if (d.getDate() < 10) dString += "0" + d.getDate();
                 else dString += d.getDate();
-                console.log(dString, web3.utils.fromWei(perShare, "ether"));
+
+                let perShareEth = web3.utils.fromWei(perShare, "ether");
+                console.log(dString, perShareEth);
+
+                // add entry to database
+                let returnObjFaunaAddHistory;
+                try {
+                    returnObjFaunaAddHistory = await client.query(
+                        q.Call(q.Function("UpdateHistory"), [
+                            fund.ref.id,
+                            fund.data.name,
+                            fund.data.contract,
+                            dString,
+                            web3.utils.fromWei(perShare, "ether"),
+                        ])
+                    );
+                } catch (error) {
+                    console.log(error);
+                }
             }
 
             console.log(
