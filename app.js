@@ -202,6 +202,7 @@ app.get("/funds", async (req, res) => {
             if (fund.data.hasOwnProperty("lastUpdate")) {
                 console.log(fund);
                 let tempFund = {};
+                tempFund.ref = fund.ref.id;
                 tempFund.name = fund.data.name;
                 tempFund.contract = fund.data.contract;
                 tempFund.activationBlock = fund.data.activationBlock;
@@ -212,6 +213,22 @@ app.get("/funds", async (req, res) => {
     }
 
     res.send(funds);
+});
+
+app.get("/fund/:ref", async (req, res) => {
+    const ref = req.params.ref;
+
+    let returnObjFaunaGetHistory = [];
+    try {
+        returnObjFaunaGetHistory = await client.query(
+            q.Map(
+                q.Paginate(q.Match(q.Index("history_by_fund"), ref)),
+                q.Lambda("x", q.Select("data", q.Get(q.Var("x"))))
+            )
+        );
+    } catch (error) {}
+
+    res.send(returnObjFaunaGetHistory.data);
 });
 
 app.listen(port, () =>
