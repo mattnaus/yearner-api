@@ -24,7 +24,7 @@ const dater = new EthDater(
 
 const dateFormat = (d) => {
     let dString = d.getFullYear() + "-";
-    if (d.getMonth() < 10) {
+    if (d.getMonth() < 9) {
         dString += "0" + (d.getMonth() + 1);
     } else {
         dString += d.getMonth() + 1;
@@ -38,6 +38,26 @@ const dateFormat = (d) => {
 
 const round2Dec = (num) => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+const getHistoryItem = async (contract, date) => {
+    let returnObjFaunaGetToday;
+    try {
+        returnObjFaunaGetToday = await client.query(
+            q.Map(
+                q.Paginate(
+                    q.Match(q.Index("history_by_fund_date"), [contract, date])
+                ),
+                q.Lambda("x", q.Get(q.Var("x")))
+            )
+        );
+    } catch (err) {
+        console.log(err);
+    }
+
+    if (returnObjFaunaGetToday.data.length !== 0)
+        return returnObjFaunaGetToday.data[0].data;
+    else return false;
 };
 
 app.get("/update", async (req, res) => {
@@ -180,43 +200,150 @@ app.get("/update", async (req, res) => {
             console.log("-- calculate some statistics...");
 
             // all time
-            let returnObjFaunaGetToday;
-            try {
-                returnObjFaunaGetToday = await client.query(
-                    q.Map(
-                        q.Paginate(
-                            q.Match(q.Index("history_by_fund_date"), [
-                                fund.data.contract,
-                                dateFormat(today),
-                            ])
-                        ),
-                        q.Lambda("x", q.Get(q.Var("x")))
-                    )
-                );
-            } catch (err) {
-                console.log(err);
-            }
+            let historyItem = await getHistoryItem(
+                fund.data.contract,
+                dateFormat(today)
+            );
 
-            let valueToday = Number(returnObjFaunaGetToday.data[0].data.value);
-
+            let valueToday = Number(historyItem.value);
             let difference = valueToday - 1;
             let percAll = (difference / 1) * 100;
 
             console.log("-- all time: " + round2Dec(percAll) + "%");
 
             // 1 year
-            const activationDate = new Date(fund.data.activationBlock.date);
-            const diffTime = Math.abs(today - activationDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             let perc1Year;
-            if (diffDays > 365) {
-                // if activation was more than 365 days ago, calculate
+            const activationDate = new Date(fund.data.activationBlock.date);
+            const activationDatePlus1Year = new Date(activationDate.getTime());
+            activationDatePlus1Year.setFullYear(
+                activationDatePlus1Year.getFullYear() + 1
+            );
+
+            if (activationDatePlus1Year < today) {
+                // older then 1 year, calculate
             } else {
-                // if not, then 1 year matches all time
+                // not older then 1 year, use all time
                 perc1Year = percAll;
             }
 
             console.log("-- 1 year: " + round2Dec(perc1Year) + "%");
+
+            // 3 months
+            let perc3Months;
+            const activationDatePlus3Months = new Date(
+                activationDate.getTime()
+            );
+            activationDatePlus3Months.setMonth(
+                activationDatePlus3Months.getMonth() + 3
+            );
+
+            if (activationDatePlus3Months < today) {
+                // older than 3 months, calculate
+                let date3MonthsAgo = new Date();
+                date3MonthsAgo.setMonth(date3MonthsAgo.getMonth() - 3);
+                historyItem = await getHistoryItem(
+                    fund.data.contract,
+                    dateFormat(date3MonthsAgo)
+                );
+                difference = valueToday - Number(historyItem.value);
+                perc3Months = (difference / Number(historyItem.value)) * 100;
+            } else {
+                // not older than 3 months, use all time
+                perc3Months = percAll;
+            }
+
+            console.log("-- 3 months: " + round2Dec(perc3Months) + "%");
+
+            // 1 month
+            let perc1Month;
+            const activationDatePlus1Months = new Date(
+                activationDate.getTime()
+            );
+            activationDatePlus1Months.setMonth(
+                activationDatePlus1Months.getMonth() + 1
+            );
+
+            if (activationDatePlus1Months < today) {
+                // older than 1 month, calculate
+                let date1MonthAgo = new Date();
+                date1MonthAgo.setMonth(date1MonthAgo.getMonth() - 1);
+                historyItem = await getHistoryItem(
+                    fund.data.contract,
+                    dateFormat(date1MonthAgo)
+                );
+                difference = valueToday - Number(historyItem.value);
+                perc1Month = (difference / Number(historyItem.value)) * 100;
+            } else {
+                // not older than 1 month, use all time
+                perc1Month = percAll;
+            }
+
+            console.log("-- 1 month: " + round2Dec(perc1Month) + "%");
+
+            // 1 week
+            let perc1Week;
+            const activationDatePlus1Week = new Date(activationDate.getTime());
+            activationDatePlus1Week.setDate(
+                activationDatePlus1Week.getDate() + 7
+            );
+
+            if (activationDatePlus1Week < today) {
+                // older than 1 week, calculate
+                let date1WeekAgo = new Date();
+                date1WeekAgo.setDate(date1WeekAgo.getDate() - 7);
+                historyItem = await getHistoryItem(
+                    fund.data.contract,
+                    dateFormat(date1WeekAgo)
+                );
+                difference = valueToday - Number(historyItem.value);
+                perc1Week = (difference / Number(historyItem.value)) * 100;
+            } else {
+                // not older than 1 week, use all time
+                perc1Week = percAll;
+            }
+
+            console.log("-- 1 week: " + round2Dec(perc1Week) + "%");
+
+            // year to date
+            let perc1Ytd;
+            // if fund launched this year, use all time
+            if (today.getFullYear() === activationDate.getFullYear()) {
+                // launched this year, use all time
+                perc1Ytd = percAll;
+            } else {
+                // launched before this year, calculate from Jan 1st this year
+                let date1Jan = new Date();
+                date1Jan.setFullYear(today.getFullYear());
+                date1Jan.setMonth(0);
+                date1Jan.setDate(1);
+                historyItem = await getHistoryItem(
+                    fund.data.contract,
+                    dateFormat(date1Jan)
+                );
+                difference = valueToday - Number(historyItem.value);
+                perc1Ytd = (difference / Number(historyItem.value)) * 100;
+            }
+
+            console.log("-- year-to-date: " + round2Dec(perc1Ytd) + "%");
+
+            try {
+                let returnObjFaunaUpdateFund = client.query(
+                    q.Update(fund.ref, {
+                        data: {
+                            stats: {
+                                _all: percAll,
+                                _1year: perc1Year,
+                                _3months: perc3Months,
+                                _1month: perc1Month,
+                                _1week: perc1Week,
+                                _ytd: perc1Ytd,
+                            },
+                        },
+                    })
+                );
+            } catch (error) {
+                console.log(error);
+            }
 
             console.log(
                 "-- Done with " +
