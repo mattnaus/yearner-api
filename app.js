@@ -22,6 +22,24 @@ const dater = new EthDater(
     web3 // Web3 object, required.
 );
 
+const dateFormat = (d) => {
+    let dString = d.getFullYear() + "-";
+    if (d.getMonth() < 10) {
+        dString += "0" + (d.getMonth() + 1);
+    } else {
+        dString += d.getMonth() + 1;
+    }
+    dString += "-";
+    if (d.getDate() < 10) dString += "0" + d.getDate();
+    else dString += d.getDate();
+
+    return dString;
+};
+
+const round2Dec = (num) => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 app.get("/update", async (req, res) => {
     // grab all funds
     let returnObjFaunaGetFunds;
@@ -136,16 +154,7 @@ app.get("/update", async (req, res) => {
                     .pricePerShare()
                     .call(undefined, block.block);
 
-                // date handling
-                let dString = d.getFullYear() + "-";
-                if (d.getMonth() < 10) {
-                    dString += "0" + (d.getMonth() + 1);
-                } else {
-                    dString += d.getMonth() + 1;
-                }
-                dString += "-";
-                if (d.getDate() < 10) dString += "0" + d.getDate();
-                else dString += d.getDate();
+                let dString = dateFormat(d);
 
                 let perShareEth = web3.utils.fromWei(perShare, "ether");
                 console.log("-- " + dString, block.block, perShareEth);
@@ -159,13 +168,55 @@ app.get("/update", async (req, res) => {
                             fund.data.name,
                             fund.data.contract,
                             dString,
-                            web3.utils.fromWei(perShare, "ether"),
+                            perShareEth,
                         ])
                     );
                 } catch (error) {
                     console.log(error);
                 }
             }
+
+            // set statistics: all time, 1y, 3m, 1m, 1w
+            console.log("-- calculate some statistics...");
+
+            // all time
+            let returnObjFaunaGetToday;
+            try {
+                returnObjFaunaGetToday = await client.query(
+                    q.Map(
+                        q.Paginate(
+                            q.Match(q.Index("history_by_fund_date"), [
+                                fund.data.contract,
+                                dateFormat(today),
+                            ])
+                        ),
+                        q.Lambda("x", q.Get(q.Var("x")))
+                    )
+                );
+            } catch (err) {
+                console.log(err);
+            }
+
+            let valueToday = Number(returnObjFaunaGetToday.data[0].data.value);
+
+            let difference = valueToday - 1;
+            let percAll = (difference / 1) * 100;
+
+            console.log("-- all time: " + round2Dec(percAll) + "%");
+
+            // 1 year
+            const activationDate = new Date(fund.data.activationBlock.date);
+            const diffTime = Math.abs(today - activationDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            let perc1Year;
+            if (diffDays > 365) {
+                // if activation was more than 365 days ago, calculate
+            } else {
+                // if not, then 1 year matches all time
+                perc1Year = percAll;
+            }
+
+            console.log("-- 1 year: " + round2Dec(perc1Year) + "%");
 
             console.log(
                 "-- Done with " +
@@ -222,7 +273,9 @@ app.get("/fund/:ref", async (req, res) => {
     try {
         returnObjFaunaGetHistory = await client.query(
             q.Map(
-                q.Paginate(q.Match(q.Index("history_by_fund"), ref)),
+                q.Paginate(q.Match(q.Index("history_by_fund"), ref), {
+                    size: 100000,
+                }),
                 q.Lambda("x", q.Select("data", q.Get(q.Var("x"))))
             )
         );
