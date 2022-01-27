@@ -29,7 +29,7 @@ app.get("/funds", async (req, res) => {
     let funds = [];
 
     if (returnObjFaunaGetFunds.data.length !== 0) {
-        for (fund of returnObjFaunaGetFunds.data) {
+        for (let fund of returnObjFaunaGetFunds.data) {
             if (fund.data.hasOwnProperty("lastUpdate")) {
                 console.log(fund);
                 let tempFund = {};
@@ -44,7 +44,7 @@ app.get("/funds", async (req, res) => {
         }
     }
 
-    res.send(funds);
+    res.send({ funds: funds });
 });
 
 app.get("/fund/:ref", async (req, res) => {
