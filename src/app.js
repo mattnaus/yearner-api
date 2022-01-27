@@ -53,30 +53,13 @@ app.get("/funds", async (req, res) => {
         Etag: 'W/"227e-gljI9fM8tGjxu+wA0kviiZ6rmN0"',
         Vary: "Origin, Accept-Encoding",
         "X-Content-Type-Options": "nosniff",
-    });
-
-    res.send({ funds: funds });
-});
-
-app.get("/all", (req, res) => {
-    res.set({
-        "Access-Control-Allow-Credentials": true,
-        "Access-Control-Expose-Headers": "X-Total-Count",
-        "CF-Cache-Status": "DYNAMIC",
-        "Cache-Control": "no-cache",
-        Expires: -1,
-        Etag: 'W/"227e-gljI9fM8tGjxu+wA0kviiZ6rmN0"',
-        Vary: "Origin, Accept-Encoding",
-        "X-Content-Type-Options": "nosniff",
         "Access-Control-Allow-Headers": "*",
         "ACCESS-CONTROL-ALLOW-METHODS": "GET",
         "Access-Control-Allow-Origin": "*",
         "Content-Type": "application/json",
     });
 
-    const data = [{ test: "one" }, { test: "two" }];
-
-    res.status(200).json(data);
+    res.status(200).json(funds);
 });
 
 app.get("/fund/:ref", async (req, res) => {

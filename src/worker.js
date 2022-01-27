@@ -322,12 +322,12 @@ const update = async () => {
                     q.Update(fund.ref, {
                         data: {
                             stats: {
-                                _all: percAll,
-                                _1year: perc1Year,
-                                _3months: perc3Months,
-                                _1month: perc1Month,
-                                _1week: perc1Week,
-                                _ytd: perc1Ytd,
+                                _all: shared.round2Dec(percAll),
+                                _1year: shared.round2Dec(perc1Year),
+                                _3months: shared.round2Dec(perc3Months),
+                                _1month: shared.round2Dec(perc1Month),
+                                _1week: shared.round2Dec(perc1Week),
+                                _ytd: shared.round2Dec(perc1Ytd),
                             },
                         },
                     })
