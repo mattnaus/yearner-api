@@ -38,6 +38,7 @@ app.get("/funds", async (req, res) => {
                 tempFund.contract = fund.data.contract;
                 tempFund.activationBlock = fund.data.activationBlock;
                 tempFund.lastUpdate = fund.data.lastUpdate;
+                tempFund.stats = fund.data.stats;
                 funds.push(tempFund);
             }
         }
