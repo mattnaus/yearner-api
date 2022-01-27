@@ -159,6 +159,7 @@ const update = async () => {
             let dates = [];
 
             // loop from d until today
+            let sharePriceToday = 1;
             for (d; d <= today; d.setDate(d.getDate() + 1)) {
                 let block = await dater.getDate(d, true);
                 let perShare = await instance.methods
@@ -184,6 +185,10 @@ const update = async () => {
                     );
                 } catch (error) {
                     console.log(error);
+                }
+
+                if (shared.dateFormat(d) === shared.dateFormat(today)) {
+                    sharePriceToday = shared.round2Dec(Number(perShareEth));
                 }
             }
 
@@ -321,6 +326,7 @@ const update = async () => {
                 let returnObjFaunaUpdateFund = client.query(
                     q.Update(fund.ref, {
                         data: {
+                            sharePrice: sharePriceToday,
                             stats: {
                                 _all: shared.round2Dec(percAll),
                                 _1year: shared.round2Dec(perc1Year),
