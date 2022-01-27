@@ -1,27 +1,29 @@
 {
-  "name": "ethian-api",
-  "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
-  "scripts": {
-    "start": "node app.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://mattnaus@github.com/mattnaus/ethian-api.git"
-  },
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/mattnaus/ethian-api/issues"
-  },
-  "homepage": "https://github.com/mattnaus/ethian-api#readme",
-  "dependencies": {
-    "@alch/alchemy-web3": "^1.1.8",
-    "axios": "^0.24.0",
-    "dotenv": "^11.0.0",
-    "ethereum-block-by-date": "^1.4.2",
-    "express": "^4.17.1",
-    "faunadb": "^4.4.1"
-  }
+    "name": "ethian-api",
+    "version": "1.0.0",
+    "description": "",
+    "main": "app.js",
+    "scripts": {
+        "start": "node src/app.js",
+        "worker": "node src/worker.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://mattnaus@github.com/mattnaus/ethian-api.git"
+    },
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/mattnaus/ethian-api/issues"
+    },
+    "homepage": "https://github.com/mattnaus/ethian-api#readme",
+    "dependencies": {
+        "@alch/alchemy-web3": "^1.1.8",
+        "axios": "^0.24.0",
+        "dotenv": "^11.0.0",
+        "ethereum-block-by-date": "^1.4.2",
+        "express": "^4.17.1",
+        "faunadb": "^4.4.1",
+        "node-cron": "^3.0.0"
+    }
 }

@@ -1,13 +1,11 @@
-const express = require("express");
+const cron = require("node-cron");
 const EthDater = require("ethereum-block-by-date");
 const { createAlchemyWeb3 } = require("@alch/alchemy-web3");
 const axios = require("axios");
 const fauna = require("faunadb");
 const dotenv = require("dotenv");
+const shared = require("./shared/utils.js");
 dotenv.config();
-
-const app = express();
-const port = process.env.PORT || 3000;
 
 const web3 = createAlchemyWeb3(
     "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***"
@@ -22,23 +20,16 @@ const dater = new EthDater(
     web3 // Web3 object, required.
 );
 
-const dateFormat = (d) => {
-    let dString = d.getFullYear() + "-";
-    if (d.getMonth() < 9) {
-        dString += "0" + (d.getMonth() + 1);
-    } else {
-        dString += d.getMonth() + 1;
+cron.schedule(
+    "30 9 * * *",
+    () => {
+        update();
+    },
+    {
+        scheduled: true,
+        timezone: "Asia/Bangkok",
     }
-    dString += "-";
-    if (d.getDate() < 10) dString += "0" + d.getDate();
-    else dString += d.getDate();
-
-    return dString;
-};
-
-const round2Dec = (num) => {
-    return Math.round((num + Number.EPSILON) * 100) / 100;
-};
+);
 
 const getHistoryItem = async (contract, date) => {
     let returnObjFaunaGetToday;
@@ -60,7 +51,7 @@ const getHistoryItem = async (contract, date) => {
     else return false;
 };
 
-app.get("/update", async (req, res) => {
+const update = async () => {
     // grab all funds
     let returnObjFaunaGetFunds;
     try {
@@ -174,7 +165,7 @@ app.get("/update", async (req, res) => {
                     .pricePerShare()
                     .call(undefined, block.block);
 
-                let dString = dateFormat(d);
+                let dString = shared.dateFormat(d);
 
                 let perShareEth = web3.utils.fromWei(perShare, "ether");
                 console.log("-- " + dString, block.block, perShareEth);
@@ -202,14 +193,14 @@ app.get("/update", async (req, res) => {
             // all time
             let historyItem = await getHistoryItem(
                 fund.data.contract,
-                dateFormat(today)
+                shared.dateFormat(today)
             );
 
             let valueToday = Number(historyItem.value);
             let difference = valueToday - 1;
             let percAll = (difference / 1) * 100;
 
-            console.log("-- all time: " + round2Dec(percAll) + "%");
+            console.log("-- all time: " + shared.round2Dec(percAll) + "%");
 
             // 1 year
             let perc1Year;
@@ -226,7 +217,7 @@ app.get("/update", async (req, res) => {
                 perc1Year = percAll;
             }
 
-            console.log("-- 1 year: " + round2Dec(perc1Year) + "%");
+            console.log("-- 1 year: " + shared.round2Dec(perc1Year) + "%");
 
             // 3 months
             let perc3Months;
@@ -243,7 +234,7 @@ app.get("/update", async (req, res) => {
                 date3MonthsAgo.setMonth(date3MonthsAgo.getMonth() - 3);
                 historyItem = await getHistoryItem(
                     fund.data.contract,
-                    dateFormat(date3MonthsAgo)
+                    shared.dateFormat(date3MonthsAgo)
                 );
                 difference = valueToday - Number(historyItem.value);
                 perc3Months = (difference / Number(historyItem.value)) * 100;
@@ -252,7 +243,7 @@ app.get("/update", async (req, res) => {
                 perc3Months = percAll;
             }
 
-            console.log("-- 3 months: " + round2Dec(perc3Months) + "%");
+            console.log("-- 3 months: " + shared.round2Dec(perc3Months) + "%");
 
             // 1 month
             let perc1Month;
@@ -269,7 +260,7 @@ app.get("/update", async (req, res) => {
                 date1MonthAgo.setMonth(date1MonthAgo.getMonth() - 1);
                 historyItem = await getHistoryItem(
                     fund.data.contract,
-                    dateFormat(date1MonthAgo)
+                    shared.dateFormat(date1MonthAgo)
                 );
                 difference = valueToday - Number(historyItem.value);
                 perc1Month = (difference / Number(historyItem.value)) * 100;
@@ -278,7 +269,7 @@ app.get("/update", async (req, res) => {
                 perc1Month = percAll;
             }
 
-            console.log("-- 1 month: " + round2Dec(perc1Month) + "%");
+            console.log("-- 1 month: " + shared.round2Dec(perc1Month) + "%");
 
             // 1 week
             let perc1Week;
@@ -293,7 +284,7 @@ app.get("/update", async (req, res) => {
                 date1WeekAgo.setDate(date1WeekAgo.getDate() - 7);
                 historyItem = await getHistoryItem(
                     fund.data.contract,
-                    dateFormat(date1WeekAgo)
+                    shared.dateFormat(date1WeekAgo)
                 );
                 difference = valueToday - Number(historyItem.value);
                 perc1Week = (difference / Number(historyItem.value)) * 100;
@@ -302,7 +293,7 @@ app.get("/update", async (req, res) => {
                 perc1Week = percAll;
             }
 
-            console.log("-- 1 week: " + round2Dec(perc1Week) + "%");
+            console.log("-- 1 week: " + shared.round2Dec(perc1Week) + "%");
 
             // year to date
             let perc1Ytd;
@@ -318,13 +309,13 @@ app.get("/update", async (req, res) => {
                 date1Jan.setDate(1);
                 historyItem = await getHistoryItem(
                     fund.data.contract,
-                    dateFormat(date1Jan)
+                    shared.dateFormat(date1Jan)
                 );
                 difference = valueToday - Number(historyItem.value);
                 perc1Ytd = (difference / Number(historyItem.value)) * 100;
             }
 
-            console.log("-- year-to-date: " + round2Dec(perc1Ytd) + "%");
+            console.log("-- year-to-date: " + shared.round2Dec(perc1Ytd) + "%");
 
             try {
                 let returnObjFaunaUpdateFund = client.query(
@@ -355,62 +346,4 @@ app.get("/update", async (req, res) => {
             console.log("------------");
         }
     }
-
-    res.send("Hello World!");
-});
-
-app.get("/funds", async (req, res) => {
-    // grab all funds
-    let returnObjFaunaGetFunds;
-    try {
-        returnObjFaunaGetFunds = await client.query(
-            q.Map(
-                q.Paginate(q.Match(q.Index("all_funds"))),
-                q.Lambda("x", q.Get(q.Var("x")))
-            )
-        );
-    } catch (error) {
-        console.log(error);
-    }
-
-    let funds = [];
-
-    if (returnObjFaunaGetFunds.data.length !== 0) {
-        for (fund of returnObjFaunaGetFunds.data) {
-            if (fund.data.hasOwnProperty("lastUpdate")) {
-                console.log(fund);
-                let tempFund = {};
-                tempFund.ref = fund.ref.id;
-                tempFund.name = fund.data.name;
-                tempFund.contract = fund.data.contract;
-                tempFund.activationBlock = fund.data.activationBlock;
-                tempFund.lastUpdate = fund.data.lastUpdate;
-                funds.push(tempFund);
-            }
-        }
-    }
-
-    res.send(funds);
-});
-
-app.get("/fund/:ref", async (req, res) => {
-    const ref = req.params.ref;
-
-    let returnObjFaunaGetHistory = [];
-    try {
-        returnObjFaunaGetHistory = await client.query(
-            q.Map(
-                q.Paginate(q.Match(q.Index("history_by_fund"), ref), {
-                    size: 100000,
-                }),
-                q.Lambda("x", q.Select("data", q.Get(q.Var("x"))))
-            )
-        );
-    } catch (error) {}
-
-    res.send(returnObjFaunaGetHistory.data);
-});
-
-app.listen(port, () =>
-    console.log(`sample-expressjs app listening on port ${port}!`)
-);
+};
