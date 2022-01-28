@@ -133,6 +133,8 @@ const update = async () => {
                         })
                     );
                 } catch (error) {}
+                fund.data.activationBlock = block;
+                fund.data.activationStamp = activation;
             } else {
                 console.log("-- activation data present, using saved data.");
                 block = fund.data.activationBlock;
