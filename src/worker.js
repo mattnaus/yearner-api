@@ -324,11 +324,33 @@ const update = async () => {
 
             console.log("-- year-to-date: " + shared.round2Dec(perc1Ytd) + "%");
 
+            // gathering some more details for the fund:
+            // - total assets
+            // - available shares
+            // - token symbol
+            // - token contract
+            const totalAssets = await instance.methods.totalAssets().call();
+            const availableShares = await instance.methods
+                .maxAvailableShares()
+                .call();
+            const tokenSymbol = await instance.methods.symbol().call();
+            const tokenContract = await instance.methods.token().call();
+
             try {
                 let returnObjFaunaUpdateFund = client.query(
                     q.Update(fund.ref, {
                         data: {
                             sharePrice: sharePriceToday,
+                            totalAssets: web3.utils.fromWei(
+                                totalAssets,
+                                "ether"
+                            ),
+                            availableShares: web3.utils.fromWei(
+                                availableShares,
+                                "ether"
+                            ),
+                            tokenSymbol: tokenSymbol,
+                            tokenContract: tokenContract,
                             stats: {
                                 _all: shared.round2Dec(percAll),
                                 _1year: shared.round2Dec(perc1Year),
