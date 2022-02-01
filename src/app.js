@@ -145,6 +145,15 @@ app.get("/v1/history/:ref", async (req, res) => {
     res.send(returnObjFaunaGetHistory.data[0]);
 });
 
+/*app.get("/v1/updateFund/:fund", async (req, res) => {
+    const fund = req.params.fund;
+
+    //console.log(fund);
+    await shared.updateContract(fund);
+
+    res.send(fund);
+});*/
+
 app.get("/v2/funds", async (req, res) => {
     // grab all funds
     let returnObjFaunaGetFunds;
