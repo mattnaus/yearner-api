@@ -48,6 +48,11 @@ app.get("/v1/funds", async (req, res) => {
                 tempFund.activationBlock = fund.data.activationBlock;
                 tempFund.lastUpdate = fund.data.lastUpdate;
                 tempFund.stats = fund.data.stats;
+                tempFund.sharePrice = fund.data.sharePrice;
+                tempFund.totalAssets = fund.data.totalAssets;
+                tempFund.availableShares = fund.data.availableShares;
+                tempFund.tokenSymbol = fund.data.tokenSymbol;
+                tempFund.tokenContract = fund.data.tokenContract;
                 funds.push(tempFund);
             }
         }

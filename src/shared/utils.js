@@ -195,10 +195,6 @@ module.exports.updateContract = async (fund) => {
         } catch (error) {
             console.log(error);
         }
-
-        if (dateFormat(d) === dateFormat(today)) {
-            sharePriceToday = round2Dec(Number(perShareEth));
-        }
     }
 
     // set statistics: all time, 1y, 3m, 1m, 1w
@@ -211,6 +207,8 @@ module.exports.updateContract = async (fund) => {
         fund.data.contract,
         dateFormat(today)
     );
+
+    sharePriceToday = historyItem.value;
 
     let valueToday = Number(historyItem.value);
     historyItem = await getHistoryItem(
@@ -352,7 +350,7 @@ module.exports.updateContract = async (fund) => {
         let returnObjFaunaUpdateFund = client.query(
             q.Update(fund.ref, {
                 data: {
-                    sharePrice: sharePriceToday,
+                    sharePrice: round2Dec(sharePriceToday),
                     totalAssets: web3.utils.fromWei(totalAssets, "ether"),
                     availableShares: web3.utils.fromWei(
                         availableShares,
