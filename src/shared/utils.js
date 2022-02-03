@@ -351,10 +351,11 @@ module.exports.updateContract = async (fund) => {
             q.Update(fund.ref, {
                 data: {
                     sharePrice: round2Dec(Number(sharePriceToday)),
-                    totalAssets: web3.utils.fromWei(totalAssets, "ether"),
-                    availableShares: web3.utils.fromWei(
-                        availableShares,
-                        "ether"
+                    totalAssets: round2Dec(
+                        Number(web3.utils.fromWei(totalAssets, "ether"))
+                    ),
+                    availableShares: round2Dec(
+                        Number(web3.utils.fromWei(availableShares, "ether"))
                     ),
                     tokenSymbol: tokenSymbol,
                     tokenContract: tokenContract,
