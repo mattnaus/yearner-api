@@ -216,7 +216,7 @@ module.exports.updateContract = async (fund) => {
         dateFormat(activationDate)
     );
     console.log("valueToday", valueToday);
-    console.log("valueBackThen", Number(historyItem));
+    console.log("valueBackThen", Number(historyItem.value));
     let difference = valueToday - Number(historyItem.value);
     console.log("difference", difference);
     let percAll = (difference / Number(historyItem.value)) * 100;
