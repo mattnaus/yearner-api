@@ -200,7 +200,8 @@ module.exports.updateContract = async (fund) => {
     // set statistics: all time, 1y, 3m, 1m, 1w
     console.log("-- calculate some statistics...");
 
-    const activationDate = new Date(fund.data.activationBlock.date);
+    let activationDate = new Date(fund.data.activationBlock.date);
+    activationDate.setDate(activationDate.getDate() + 1);
 
     // all time
     let historyItem = await getHistoryItem(
