@@ -1,8 +1,15 @@
 const express = require("express");
 const shared = require("./shared/utils.js");
 const fauna = require("faunadb");
+const apiErrorHandler = require("./error/api-error-handler.js");
+const ApiError = require("./error/ApiError.js");
 const dotenv = require("dotenv");
 dotenv.config();
+
+const { createAlchemyWeb3 } = require("@alch/alchemy-web3");
+const web3 = createAlchemyWeb3(
+    "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***"
+);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -148,6 +155,18 @@ app.get("/v1/history/:ref", async (req, res) => {
     res.set(returnHeaders);
 
     res.send(returnObjFaunaGetHistory.data[0]);
+});
+
+app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
+    const wallet = req.params.wallet;
+
+    // verify wallet address is valid
+    if (!web3.utils.isAddress(wallet)) {
+        next(ApiError.internal("Provided wallet address is not valid."));
+        return;
+    }
+
+    res.send(wallet);
 });
 
 /*app.get("/v1/updateFund/:fund", async (req, res) => {
@@ -304,3 +323,5 @@ app.get("/test", async (req, res) => {
 app.listen(port, () =>
     console.log(`sample-expressjs app listening on port ${port}!`)
 );
+
+app.use(apiErrorHandler);
