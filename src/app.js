@@ -163,35 +163,56 @@ app.get("/v1/investment/:wallet", async (req, res) => {
     let returnObjTrans;
     try {
         returnObjTrans = await client.query(
-            q.Map(
-                q.Paginate(
-                    q.Match(
-                        q.Index("trans_by_wallet_by_fund"),
-                        "0xeb830b5f15649e4ba098affa5e811b30bac64b88",
-                        "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A"
-                    )
-                ),
-                q.Lambda(
-                    "trans",
-                    q.Let(
-                        {
-                            transaction: q.Get(q.Var("trans")),
-                        },
-                        {
-                            date: q.Select(["data", "date"], q.Var("transaction")),
-                            type: q.Select(["data", "type"], q.Var("transaction")),
-                            amount: q.Select(["data", "amount"], q.Var("transaction")),
-                        }
-                    )
-                )
+            q.Let(
+                {
+                    fund: q.Get(q.Match(q.Index("fund_by_contract"), "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A")),
+                },
+                {
+                    name: q.Select(["data", "name"], q.Var("fund")),
+                    sharePrice: q.Select(["data", "sharePrice"], q.Var("fund")),
+                    transactions: q.Map(
+                        q.Paginate(
+                            q.Match(
+                                q.Index("trans_by_wallet_by_fund"),
+                                "0xeb830b5f15649e4ba098affa5e811b30bac64b88",
+                                "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A"
+                            )
+                        ),
+                        q.Lambda(
+                            "trans",
+                            q.Let(
+                                {
+                                    transaction: q.Get(q.Var("trans")),
+                                },
+                                {
+                                    date: q.Select(["data", "date"], q.Var("transaction")),
+                                    type: q.Select(["data", "type"], q.Var("transaction")),
+                                    shares: q.Select(["data", "shares"], q.Var("transaction")),
+                                    amount: q.Select(["data", "amount"], q.Var("transaction")),
+                                }
+                            )
+                        )
+                    ),
+                }
             )
         );
     } catch (err) {}
 
     //console.log(returnObjTrans);
 
+    if (returnObjTrans.transactions.data.length > 0) {
+        for (let transaction of returnObjTrans.transactions.data) {
+            transaction.valueToday = shared.round2Dec(transaction.shares * returnObjTrans.sharePrice);
+            transaction.perc = shared.round2Dec(
+                ((transaction.valueToday - transaction.amount) / transaction.amount) * 100
+            );
+        }
+    }
+
+    console.log(returnObjTrans.transactions.data);
+
     // determine the date on which the wallet first bought shares in the fund (sticking with first result; will need improvement soon though)
-    const temp = returnObjTrans.data[0].date.split("-");
+    const temp = returnObjTrans.transactions.data[0].date.split("-");
     const firstDate = new Date();
     firstDate.setUTCFullYear(Number(temp[0]));
     firstDate.setUTCMonth(Number(temp[1]) - 1);
@@ -220,8 +241,7 @@ app.get("/v1/investment/:wallet", async (req, res) => {
     //console.log(returnObjHistory);
 
     let investmentArray = [];
-    let totalShares = returnObjTrans.data.find((x) => x.date === shared.dateFormat(firstDate)).amount;
-    console.log(totalShares);
+    let totalShares = 0;
 
     // starting from the above date, loop through every day until the correct day
     for (firstDate; firstDate <= today; firstDate.setDate(firstDate.getDate() + 1)) {
@@ -230,8 +250,8 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         let dateString = shared.dateFormat(firstDate);
         let sharePrice = returnObjHistory.data.find((x) => x.date === dateString).value;
 
-        let adjustment = returnObjTrans.data.find((x) => x.date === dateString);
-        if (adjustment && adjustment.type === "in") totalShares += adjustment.amount;
+        let adjustment = returnObjTrans.transactions.data.find((x) => x.date === dateString);
+        if (adjustment && adjustment.type === "in") totalShares += adjustment.shares;
 
         let tempObject = {
             date: dateString,
@@ -241,7 +261,10 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         investmentArray.push(tempObject);
     }
 
-    res.json(investmentArray);
+    res.json({
+        history: investmentArray,
+        transaction: returnObjTrans.transactions.data,
+    });
 });
 
 app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
@@ -319,7 +342,7 @@ app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
             let transfers = returnObj.data.result.transfers;
 
             for (let trans of transfers) {
-                //console.log(trans);
+                console.log(trans);
                 let transObject = await axios({
                     method: "post",
                     url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
@@ -372,7 +395,8 @@ app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
                                             wallet: returnObjFaunaGetWallet.wallet.toLowerCase(),
                                             fund: fund.contract,
                                             type: "in",
-                                            amount: shared.round2Dec(Number(amount)),
+                                            shares: shared.round2Dec(Number(amount)),
+                                            amount: shared.round2Dec(Number(trans.value)),
                                             blockNumber: transObject.data.result.blockNumber,
                                             date: shared.dateFormat(new Date(block.timestamp * 1000)),
                                         },
