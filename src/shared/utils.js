@@ -372,18 +372,22 @@ module.exports.saveTransaction = async (wallet, fund, type, shares, amount, bloc
     let saveTransaction;
     try {
         saveTransaction = client.query(
-            q.Create(q.Collection("transactions"), {
-                data: {
-                    wallet: wallet,
-                    fund: fund.toLowerCase(),
-                    type: type,
-                    shares: round2Dec(Number(shares)),
-                    amount: round2Dec(Number(amount)),
-                    blockNumber: blockNumber,
-                    date: dateFormat(new Date(timestamp * 1000)),
-                    hash: hash,
-                },
-            })
+            q.If(
+                q.Exists(q.Match(q.Index("transaction_by_hash"), hash)),
+                "",
+                q.Create(q.Collection("transactions"), {
+                    data: {
+                        wallet: wallet,
+                        fund: fund.toLowerCase(),
+                        type: type,
+                        shares: round2Dec(Number(shares)),
+                        amount: round2Dec(Number(amount)),
+                        blockNumber: blockNumber,
+                        date: dateFormat(new Date(timestamp * 1000)),
+                        hash: hash,
+                    },
+                })
+            )
         );
     } catch (error) {
         next(ApiError.internal("Could not save transaction ", error));
