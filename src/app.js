@@ -148,9 +148,9 @@ app.get("/v1/history/:ref", async (req, res) => {
     res.send(returnObjFaunaGetHistory.data[0]);
 });
 
-app.get("/v1/investment/:wallet", async (req, res) => {
-    const wallet = req.params.wallet;
-    const contract = "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A";
+app.get("/v1/investment/:wallet/:fund", async (req, res) => {
+    const wallet = req.params.wallet.toLowerCase();
+    const contract = req.params.fund.toLowerCase();
 
     // verify wallet address is valid
     if (!web3.utils.isAddress(wallet)) {
@@ -165,25 +165,17 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         returnObjTrans = await client.query(
             q.Let(
                 {
-                    fund: q.Get(q.Match(q.Index("fund_by_contract"), "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A")),
+                    fund: q.Get(q.Match(q.Index("fund_by_contract"), contract)),
                 },
                 {
                     name: q.Select(["data", "name"], q.Var("fund")),
                     sharePrice: q.Select(["data", "sharePrice"], q.Var("fund")),
                     transactions: q.Map(
-                        q.Paginate(
-                            q.Match(
-                                q.Index("trans_by_wallet_by_fund"),
-                                "0xeb830b5f15649e4ba098affa5e811b30bac64b88",
-                                "0x25212Df29073FfFA7A67399AcEfC2dd75a831A1A"
-                            )
-                        ),
+                        q.Paginate(q.Match(q.Index("trans_by_wallet_by_fund"), wallet, contract)),
                         q.Lambda(
                             "trans",
                             q.Let(
-                                {
-                                    transaction: q.Get(q.Var("trans")),
-                                },
+                                { transaction: q.Get(q.Var("trans")) },
                                 {
                                     date: q.Select(["data", "date"], q.Var("transaction")),
                                     type: q.Select(["data", "type"], q.Var("transaction")),
@@ -209,7 +201,7 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         }
     }
 
-    console.log(returnObjTrans.transactions.data);
+    //console.log(returnObjTrans.transactions.data);
 
     // determine the date on which the wallet first bought shares in the fund (sticking with first result; will need improvement soon though)
     const temp = returnObjTrans.transactions.data[0].date.split("-");
@@ -238,8 +230,6 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         );
     } catch (err) {}
 
-    //console.log(returnObjHistory);
-
     let investmentArray = [];
     let totalShares = 0;
 
@@ -248,6 +238,7 @@ app.get("/v1/investment/:wallet", async (req, res) => {
         // for each day, check for increase/decrease in number of shares
         // determine the value of total number of shares in this fund
         let dateString = shared.dateFormat(firstDate);
+        console.log(dateString);
         let sharePrice = returnObjHistory.data.find((x) => x.date === dateString).value;
 
         let adjustment = returnObjTrans.transactions.data.find((x) => x.date === dateString);
@@ -263,12 +254,13 @@ app.get("/v1/investment/:wallet", async (req, res) => {
 
     res.json({
         history: investmentArray,
-        transaction: returnObjTrans.transactions.data,
+        transactions: returnObjTrans.transactions.data,
     });
 });
 
 app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
-    const wallet = req.params.wallet;
+    const wallet = req.params.wallet.toLowerCase();
+    const migrationContract = "***REMOVED***";
 
     // verify wallet address is valid
     if (!web3.utils.isAddress(wallet)) {
@@ -276,74 +268,57 @@ app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
         return;
     }
 
-    // get funds
-    let returnObjFaunaGetWallet;
-    try {
-        returnObjFaunaGetWallet = await client.query(
-            q.Let(
-                {
-                    wallet: q.Get(q.Match(q.Index("wallet"), "0xEB830b5f15649e4ba098aFfA5E811B30bac64B88")),
-                },
-                {
-                    wallet: q.Select(["data", "wallet"], q.Var("wallet")),
-                    funds: q.Map(
-                        q.Select(["data", "funds"], q.Var("wallet")),
-                        q.Lambda(
-                            "addr",
-                            q.Let(
-                                {
-                                    fundDoc: q.Get(q.Match(q.Index("fund_by_contract"), q.Var("addr"))),
-                                },
-                                {
-                                    name: q.Select(["data", "name"], q.Var("fundDoc")),
-                                    contract: q.Select(["data", "contract"], q.Var("fundDoc")),
-                                    abi: q.Select(["data", "ABI"], q.Var("fundDoc")),
-                                }
-                            )
-                        )
-                    ),
-                }
-            )
-        );
-    } catch (err) {
-        next(ApiError.internal("Can not load funds", err));
+    // get wallet and connected funds
+    let walletData = await shared.getWalletPlusFunds(wallet, next);
+    console.log(walletData);
+
+    if (walletData.funds.length === 0) {
+        res.send("Wallet not invested in any funds");
         return;
     }
 
-    if (returnObjFaunaGetWallet.funds.length > 0) {
-        for (let fund of returnObjFaunaGetWallet.funds) {
-            abiDecoder.addABI(fund.abi);
+    console.log("Looping through funds invested in by wallet " + wallet);
 
-            let returnObj = {
-                data: {},
-            };
-            while (returnObj.data.result === undefined) {
-                returnObj = await axios({
-                    method: "post",
-                    url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    data: JSON.stringify({
-                        jsonrpc: "2.0",
-                        id: 0,
-                        method: "alchemy_getAssetTransfers",
-                        params: [
-                            {
-                                fromBlock: "0x1",
-                                fromAddress: returnObjFaunaGetWallet.wallet.toLowerCase(),
-                                toAddress: fund.contract.toLowerCase(),
-                            },
-                        ],
-                    }),
-                });
-            }
+    for (let fund of walletData.funds) {
+        console.log("Processing " + fund.name);
+        abiDecoder.addABI(fund.abi);
 
-            let transfers = returnObj.data.result.transfers;
+        let getTransfersWalletToFund = {
+            data: {},
+        };
+        while (getTransfersWalletToFund.data.result === undefined) {
+            console.log("Attempting to get transfers from " + wallet + " to " + fund.contract);
+            getTransfersWalletToFund = await axios({
+                method: "post",
+                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                data: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 0,
+                    method: "alchemy_getAssetTransfers",
+                    params: [
+                        {
+                            fromBlock: "0x" + fund.activationBlock.block.toString(16),
+                            fromAddress: wallet,
+                            toAddress: fund.contract.toLowerCase(),
+                        },
+                    ],
+                }),
+            });
+        }
+        console.log("Succeeding in loading transactions");
+
+        let transfers = getTransfersWalletToFund.data.result.transfers;
+
+        if (transfers.length > 0) {
+            // next block deals with regular transfers
+
+            console.log("Processing regular transactions.");
 
             for (let trans of transfers) {
-                console.log(trans);
-                let transObject = await axios({
+                let getTransactionReceipt = await axios({
                     method: "post",
                     url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
                     headers: {
@@ -357,62 +332,163 @@ app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
                     }),
                 });
 
-                //console.log(transObject.data.result);
+                let decodedLogs = abiDecoder.decodeLogs(getTransactionReceipt.data.result.logs);
 
-                let decodedLogs = abiDecoder.decodeLogs(transObject.data.result.logs);
-                /*console.log(
-                    util.inspect(decodedLogs, {
-                        showHidden: false,
-                        depth: null,
-                        colors: true,
-                    })
-                );*/
                 for (let event of decodedLogs) {
                     if (event.name === "Transfer") {
                         // only process Transfer type events
                         // find the "receiver" object
-                        if (
-                            event.events.find((x) => x.name === "receiver").value ===
-                            returnObjFaunaGetWallet.wallet.toLowerCase()
-                        ) {
+                        if (event.events.find((x) => x.name === "receiver").value === wallet) {
                             // we now have the object related to the Vault token transfer to the investing wallet
 
                             // figure out the date that goes with the block number for the current transaction
-                            let block = await web3.eth.getBlock(parseInt(transObject.data.result.blockNumber, 16));
-
-                            console.log(new Date(block.timestamp * 1000));
+                            let block = await web3.eth.getBlock(
+                                parseInt(getTransactionReceipt.data.result.blockNumber, 16)
+                            );
 
                             let amount = web3.utils.fromWei(
                                 event.events.find((y) => y.name === "value").value,
                                 "ether"
                             );
 
-                            let saveTransaction;
-                            try {
-                                saveTransaction = client.query(
-                                    q.Create(q.Collection("transactions"), {
-                                        data: {
-                                            wallet: returnObjFaunaGetWallet.wallet.toLowerCase(),
-                                            fund: fund.contract,
-                                            type: "in",
-                                            shares: shared.round2Dec(Number(amount)),
-                                            amount: shared.round2Dec(Number(trans.value)),
-                                            blockNumber: transObject.data.result.blockNumber,
-                                            date: shared.dateFormat(new Date(block.timestamp * 1000)),
-                                        },
-                                    })
-                                );
-                            } catch (error) {}
+                            shared.saveTransaction(
+                                wallet,
+                                fund.contract,
+                                "in",
+                                web3.utils.fromWei(event.events.find((y) => y.name === "value").value, "ether"),
+                                trans.value,
+                                getTransactionReceipt.data.result.blockNumber,
+                                block.timestamp,
+                                getTransactionReceipt.data.result.transactionHash
+                            );
                         }
                     }
                 }
-                console.log("--- --- ---");
-                console.log("--- --- ---");
-                console.log("--- --- ---");
-                console.log("--- --- ---");
+            }
+        } else {
+            // next block deals with migration transfers
+            // no direct transfers, explore migrations
+
+            console.log("Looking into possible migration transactions.");
+
+            let getTransfersWalletToFund = {
+                data: {},
+            };
+            while (getTransfersWalletToFund.data.result === undefined) {
+                console.log("Attempting to get transfers from " + wallet + " to " + migrationContract);
+                getTransfersWalletToFund = await axios({
+                    method: "post",
+                    url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    data: JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: 0,
+                        method: "alchemy_getAssetTransfers",
+                        params: [
+                            {
+                                fromBlock: "0x" + fund.activationBlock.block.toString(16),
+                                fromAddress: wallet,
+                                toAddress: migrationContract,
+                            },
+                        ],
+                    }),
+                });
+            }
+
+            let transfers = getTransfersWalletToFund.data.result.transfers;
+
+            if (transfers.length > 0) {
+                for (let trans of transfers) {
+                    let getTransactionReceipt = await axios({
+                        method: "post",
+                        url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        data: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: 0,
+                            method: "eth_getTransactionReceipt",
+                            params: [trans.hash],
+                        }),
+                    });
+
+                    let decodedLogs = abiDecoder.decodeLogs(getTransactionReceipt.data.result.logs);
+                    /*console.log(
+                        util.inspect(decodedLogs, {
+                            showHidden: false,
+                            depth: null,
+                            colors: true,
+                        })
+                    );*/
+
+                    // we need to start by determining this transaction is relevant
+                    // we do this by locating a log item that transfers funds from the migrationContract
+                    // to the fund contract. If this log exists, it's relevant
+                    let results0 = decodedLogs.filter((event) => {
+                        return (
+                            event.name === "Transfer" &&
+                            event.events[0].name === "sender" &&
+                            event.events[0].value === migrationContract &&
+                            event.events[1].name === "receiver" &&
+                            event.events[1].value === fund.contract
+                        );
+                    });
+
+                    if (results0.length === 0) {
+                        break;
+                    }
+
+                    // get the AMOUNT part (tokens transferred from wallet to migration contract)
+                    let results = decodedLogs.filter((event) => {
+                        return (
+                            event.name === "Transfer" &&
+                            event.events[0].name === "sender" &&
+                            event.events[0].value === wallet &&
+                            event.events[1].name === "receiver" &&
+                            event.events[1].value === migrationContract
+                        );
+                    });
+
+                    let amount = shared.round2Dec(Number(web3.utils.fromWei(results[0].events[2].value, "ether")));
+
+                    // get the number of shares transferred to wallet from migrationContract
+                    let results2 = decodedLogs.filter((event) => {
+                        return (
+                            event.name === "Transfer" &&
+                            event.events[0].name === "sender" &&
+                            event.events[0].value === "0x0000000000000000000000000000000000000000" &&
+                            event.events[1].name === "receiver" &&
+                            event.events[1].value === wallet
+                        );
+                    });
+
+                    let shares = shared.round2Dec(Number(web3.utils.fromWei(results2[0].events[2].value, "ether")));
+
+                    // figure out the date that goes with the block number for the current transaction
+                    let block = await web3.eth.getBlock(parseInt(trans.blockNum, 16));
+
+                    shared.saveTransaction(
+                        wallet,
+                        fund.contract,
+                        "in",
+                        shares,
+                        amount,
+                        trans.blockNum,
+                        block.timestamp,
+                        getTransactionReceipt.data.result.transactionHash
+                    );
+                }
             }
         }
     }
+
+    console.log("Done with wallet " + wallet);
+    console.log("--- --- --- ---");
+    console.log("--- --- --- ---");
+    console.log("--- --- --- ---");
 
     res.send(wallet);
 });

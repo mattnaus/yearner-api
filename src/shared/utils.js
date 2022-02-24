@@ -1,11 +1,11 @@
 const fauna = require("faunadb");
 const dotenv = require("dotenv");
 const axios = require("axios");
+const ApiError = require("../error/ApiError.js");
+const apiErrorHandler = require("../error/api-error-handler.js");
 const EthDater = require("ethereum-block-by-date");
 const { createAlchemyWeb3 } = require("@alch/alchemy-web3");
-const web3 = createAlchemyWeb3(
-    "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***"
-);
+const web3 = createAlchemyWeb3("https://eth-mainnet.alchemyapi.io/v2/***REMOVED***");
 
 dotenv.config();
 
@@ -43,9 +43,7 @@ const getHistoryItem = async (contract, date) => {
     try {
         returnObjFaunaGetToday = await client.query(
             q.Map(
-                q.Paginate(
-                    q.Match(q.Index("history_by_fund_date"), [contract, date])
-                ),
+                q.Paginate(q.Match(q.Index("history_by_fund_date"), [contract, date])),
                 q.Lambda("x", q.Get(q.Var("x")))
             )
         );
@@ -53,8 +51,7 @@ const getHistoryItem = async (contract, date) => {
         console.log(err);
     }
 
-    if (returnObjFaunaGetToday.data.length !== 0)
-        return returnObjFaunaGetToday.data[0].data;
+    if (returnObjFaunaGetToday.data.length !== 0) return returnObjFaunaGetToday.data[0].data;
     else return false;
 };
 
@@ -64,10 +61,7 @@ module.exports.updateContract = async (fund) => {
         let returnObjFaunaGetFunds;
         try {
             returnObjFaunaGetFunds = await client.query(
-                q.Map(
-                    q.Paginate(q.Match(q.Index("fund_by_contract"), fund)),
-                    q.Lambda("x", q.Get(q.Var("x")))
-                )
+                q.Map(q.Paginate(q.Match(q.Index("fund_by_contract"), fund)), q.Lambda("x", q.Get(q.Var("x"))))
             );
         } catch (error) {
             console.log(error);
@@ -79,13 +73,7 @@ module.exports.updateContract = async (fund) => {
         }
     }
 
-    console.log(
-        "-- Processing contract " +
-            fund.data.name +
-            " (" +
-            fund.data.contract +
-            ")"
-    );
+    console.log("-- Processing contract " + fund.data.name + " (" + fund.data.contract + ")");
 
     let contractABI = "";
 
@@ -147,22 +135,14 @@ module.exports.updateContract = async (fund) => {
         block = fund.data.activationBlock;
     }
 
-    const perShare = await instance.methods
-        .pricePerShare()
-        .call(undefined, block.block);
+    const perShare = await instance.methods.pricePerShare().call(undefined, block.block);
 
     let today = new Date();
     let d = new Date(block.timestamp * 1000);
     if (fund.data.hasOwnProperty("lastUpdate")) {
         let dateSplit = fund.data.lastUpdate.split("-");
 
-        d = new Date(
-            Date.UTC(
-                Number(dateSplit[0]),
-                Number(dateSplit[1] - 1),
-                Number(dateSplit[2]) + 1
-            )
-        );
+        d = new Date(Date.UTC(Number(dateSplit[0]), Number(dateSplit[1] - 1), Number(dateSplit[2]) + 1));
         console.log("-- picking up at date: " + d, dateSplit);
     }
     let dates = [];
@@ -171,9 +151,7 @@ module.exports.updateContract = async (fund) => {
     let sharePriceToday = 1;
     for (d; d <= today; d.setDate(d.getDate() + 1)) {
         let block = await dater.getDate(d, true);
-        let perShare = await instance.methods
-            .pricePerShare()
-            .call(undefined, block.block);
+        let perShare = await instance.methods.pricePerShare().call(undefined, block.block);
 
         let dString = dateFormat(d);
 
@@ -187,7 +165,7 @@ module.exports.updateContract = async (fund) => {
                 q.Call(q.Function("UpdateHistory"), [
                     fund.ref.id,
                     fund.data.name,
-                    fund.data.contract,
+                    fund.data.contract.toLowerCase(),
                     dString,
                     perShareEth,
                 ])
@@ -204,18 +182,12 @@ module.exports.updateContract = async (fund) => {
     activationDate.setDate(activationDate.getDate() + 1);
 
     // all time
-    let historyItem = await getHistoryItem(
-        fund.data.contract,
-        dateFormat(today)
-    );
+    let historyItem = await getHistoryItem(fund.data.contract, dateFormat(today));
 
     sharePriceToday = historyItem.value;
 
     let valueToday = Number(historyItem.value);
-    historyItem = await getHistoryItem(
-        fund.data.contract,
-        dateFormat(activationDate)
-    );
+    historyItem = await getHistoryItem(fund.data.contract, dateFormat(activationDate));
     console.log("valueToday", valueToday);
     console.log("historyItem", historyItem);
     console.log("date", dateFormat(activationDate));
@@ -228,18 +200,13 @@ module.exports.updateContract = async (fund) => {
     // 1 year
     let perc1Year;
     const activationDatePlus1Year = new Date(activationDate.getTime());
-    activationDatePlus1Year.setFullYear(
-        activationDatePlus1Year.getFullYear() + 1
-    );
+    activationDatePlus1Year.setFullYear(activationDatePlus1Year.getFullYear() + 1);
 
     if (activationDatePlus1Year < today) {
         // older then 1 year, calculate
         let date1YearAgo = new Date();
         date1YearAgo.setFullYear(date1YearAgo.getFullYear() - 1);
-        historyItem = await getHistoryItem(
-            fund.data.contract,
-            dateFormat(date1YearAgo)
-        );
+        historyItem = await getHistoryItem(fund.data.contract, dateFormat(date1YearAgo));
         difference = valueToday - Number(historyItem.value);
         perc1Year = (difference / Number(historyItem.value)) * 100;
     } else {
@@ -252,18 +219,13 @@ module.exports.updateContract = async (fund) => {
     // 3 months
     let perc3Months;
     const activationDatePlus3Months = new Date(activationDate.getTime());
-    activationDatePlus3Months.setMonth(
-        activationDatePlus3Months.getMonth() + 3
-    );
+    activationDatePlus3Months.setMonth(activationDatePlus3Months.getMonth() + 3);
 
     if (activationDatePlus3Months < today) {
         // older than 3 months, calculate
         let date3MonthsAgo = new Date();
         date3MonthsAgo.setMonth(date3MonthsAgo.getMonth() - 3);
-        historyItem = await getHistoryItem(
-            fund.data.contract,
-            dateFormat(date3MonthsAgo)
-        );
+        historyItem = await getHistoryItem(fund.data.contract, dateFormat(date3MonthsAgo));
         difference = valueToday - Number(historyItem.value);
         perc3Months = (difference / Number(historyItem.value)) * 100;
     } else {
@@ -276,18 +238,13 @@ module.exports.updateContract = async (fund) => {
     // 1 month
     let perc1Month;
     const activationDatePlus1Months = new Date(activationDate.getTime());
-    activationDatePlus1Months.setMonth(
-        activationDatePlus1Months.getMonth() + 1
-    );
+    activationDatePlus1Months.setMonth(activationDatePlus1Months.getMonth() + 1);
 
     if (activationDatePlus1Months < today) {
         // older than 1 month, calculate
         let date1MonthAgo = new Date();
         date1MonthAgo.setMonth(date1MonthAgo.getMonth() - 1);
-        historyItem = await getHistoryItem(
-            fund.data.contract,
-            dateFormat(date1MonthAgo)
-        );
+        historyItem = await getHistoryItem(fund.data.contract, dateFormat(date1MonthAgo));
         difference = valueToday - Number(historyItem.value);
         perc1Month = (difference / Number(historyItem.value)) * 100;
     } else {
@@ -306,10 +263,7 @@ module.exports.updateContract = async (fund) => {
         // older than 1 week, calculate
         let date1WeekAgo = new Date();
         date1WeekAgo.setDate(date1WeekAgo.getDate() - 7);
-        historyItem = await getHistoryItem(
-            fund.data.contract,
-            dateFormat(date1WeekAgo)
-        );
+        historyItem = await getHistoryItem(fund.data.contract, dateFormat(date1WeekAgo));
         difference = valueToday - Number(historyItem.value);
         perc1Week = (difference / Number(historyItem.value)) * 100;
     } else {
@@ -331,10 +285,7 @@ module.exports.updateContract = async (fund) => {
         date1Jan.setFullYear(today.getFullYear());
         date1Jan.setMonth(0);
         date1Jan.setDate(1);
-        historyItem = await getHistoryItem(
-            fund.data.contract,
-            dateFormat(date1Jan)
-        );
+        historyItem = await getHistoryItem(fund.data.contract, dateFormat(date1Jan));
         difference = valueToday - Number(historyItem.value);
         perc1Ytd = (difference / Number(historyItem.value)) * 100;
     }
@@ -356,14 +307,10 @@ module.exports.updateContract = async (fund) => {
             q.Update(fund.ref, {
                 data: {
                     sharePrice: round2Dec(Number(sharePriceToday)),
-                    totalAssets: round2Dec(
-                        Number(web3.utils.fromWei(totalAssets, "ether"))
-                    ),
-                    availableShares: round2Dec(
-                        Number(web3.utils.fromWei(availableShares, "ether"))
-                    ),
+                    totalAssets: round2Dec(Number(web3.utils.fromWei(totalAssets, "ether"))),
+                    availableShares: round2Dec(Number(web3.utils.fromWei(availableShares, "ether"))),
                     tokenSymbol: tokenSymbol,
-                    tokenContract: tokenContract,
+                    tokenContract: tokenContract.toLowerCase(),
                     stats: {
                         _all: round2Dec(percAll),
                         _1year: round2Dec(perc1Year),
@@ -379,8 +326,67 @@ module.exports.updateContract = async (fund) => {
         console.log(error);
     }
 
-    console.log(
-        "-- Done with " + fund.data.name + " (" + fund.data.contract + ")"
-    );
+    console.log("-- Done with " + fund.data.name + " (" + fund.data.contract + ")");
     console.log("------------");
+};
+
+module.exports.getWalletPlusFunds = async (wallet, next) => {
+    let returnObjFaunaGetWallet;
+    try {
+        returnObjFaunaGetWallet = await client.query(
+            q.Let(
+                {
+                    wallet: q.Get(q.Match(q.Index("wallet"), wallet)),
+                },
+                {
+                    wallet: q.Select(["data", "wallet"], q.Var("wallet")),
+                    funds: q.Map(
+                        q.Select(["data", "funds"], q.Var("wallet")),
+                        q.Lambda(
+                            "addr",
+                            q.Let(
+                                {
+                                    fundDoc: q.Get(q.Match(q.Index("fund_by_contract"), q.Var("addr"))),
+                                },
+                                {
+                                    name: q.Select(["data", "name"], q.Var("fundDoc")),
+                                    contract: q.Select(["data", "contract"], q.Var("fundDoc")),
+                                    abi: q.Select(["data", "ABI"], q.Var("fundDoc")),
+                                    activationBlock: q.Select(["data", "activationBlock"], q.Var("fundDoc")),
+                                }
+                            )
+                        )
+                    ),
+                }
+            )
+        );
+    } catch (err) {
+        next(ApiError.internal("Can not load wallet ", err));
+        return false;
+    }
+
+    return returnObjFaunaGetWallet;
+};
+
+module.exports.saveTransaction = async (wallet, fund, type, shares, amount, blockNumber, timestamp, hash, next) => {
+    let saveTransaction;
+    try {
+        saveTransaction = client.query(
+            q.Create(q.Collection("transactions"), {
+                data: {
+                    wallet: wallet,
+                    fund: fund.toLowerCase(),
+                    type: type,
+                    shares: round2Dec(Number(shares)),
+                    amount: round2Dec(Number(amount)),
+                    blockNumber: blockNumber,
+                    date: dateFormat(new Date(timestamp * 1000)),
+                    hash: hash,
+                },
+            })
+        );
+    } catch (error) {
+        next(ApiError.internal("Could not save transaction ", error));
+        return false;
+    }
 };
