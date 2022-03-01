@@ -20,15 +20,23 @@ cron.schedule(
     }
 );
 
+cron.schedule(
+    "45 11 * * *",
+    () => {
+        updateTransactions();
+    },
+    {
+        scheduled: true,
+        timezone: "Asia/Bangkok",
+    }
+);
+
 const update = async () => {
     // grab all funds
     let returnObjFaunaGetFunds;
     try {
         returnObjFaunaGetFunds = await client.query(
-            q.Map(
-                q.Paginate(q.Match(q.Index("all_funds"))),
-                q.Lambda("x", q.Get(q.Var("x")))
-            )
+            q.Map(q.Paginate(q.Match(q.Index("all_funds"))), q.Lambda("x", q.Get(q.Var("x"))))
         );
     } catch (error) {
         console.log(error);
@@ -37,6 +45,19 @@ const update = async () => {
     if (returnObjFaunaGetFunds.data.length !== 0) {
         for (let fund of returnObjFaunaGetFunds.data) {
             await shared.updateContract(fund);
+        }
+    }
+};
+
+const updateTransactions = async () => {
+    const wallets = await shared.getAllWallets();
+    const migrationContract = "***REMOVED***";
+
+    if (wallets.data.length === 0) return;
+
+    for (let wallet of wallets.data) {
+        for (let fund of wallet.funds) {
+            await shared.processTransactionsForWalletPlusFund(wallet.wallet, fund, migrationContract);
         }
     }
 };
