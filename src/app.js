@@ -240,7 +240,8 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     let totalShares = 0;
 
     for (let dateItem of returnObjHistory.data) {
-        console.log(dateItem);
+        //console.log(dateItem);
+
         dateString = dateItem.date;
 
         let sharePrice = dateItem.value;
@@ -248,6 +249,8 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
         let adjustment = returnObjTrans.transactions.data.find((x) => x.date === dateString);
 
         if (adjustment && adjustment.type) totalShares += adjustment.shares;
+
+        if (totalShares === 0) continue;
 
         let tempObject = {
             date: dateString,
