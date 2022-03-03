@@ -307,7 +307,7 @@ module.exports.updateContract = async (fund) => {
         let returnObjFaunaUpdateFund = client.query(
             q.Update(fund.ref, {
                 data: {
-                    sharePrice: round2Dec(Number(sharePriceToday)),
+                    sharePrice: sharePriceToday,
                     totalAssets: round2Dec(Number(web3.utils.fromWei(totalAssets, "ether"))),
                     availableShares: round2Dec(Number(web3.utils.fromWei(availableShares, "ether"))),
                     tokenSymbol: tokenSymbol,
