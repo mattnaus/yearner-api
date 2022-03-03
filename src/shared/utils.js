@@ -311,7 +311,6 @@ module.exports.updateContract = async (fund) => {
                     totalAssets: round2Dec(Number(web3.utils.fromWei(totalAssets, "ether"))),
                     availableShares: round2Dec(Number(web3.utils.fromWei(availableShares, "ether"))),
                     tokenSymbol: tokenSymbol,
-                    tokenContract: tokenContract.toLowerCase(),
                     stats: {
                         _all: round2Dec(percAll),
                         _1year: round2Dec(perc1Year),
