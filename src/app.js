@@ -168,6 +168,7 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
                     fund: q.Get(q.Match(q.Index("fund_by_contract"), contract)),
                 },
                 {
+                    fund: q.Var("fund"),
                     name: q.Select(["data", "name"], q.Var("fund")),
                     sharePrice: q.Select(["data", "sharePrice"], q.Var("fund")),
                     transactions: q.Map(
@@ -261,6 +262,7 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     }
 
     res.json({
+        fund: returnObjTrans.fund.data,
         history: investmentArray,
         transactions: returnObjTrans.transactions.data,
     });
