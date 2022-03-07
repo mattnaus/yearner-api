@@ -441,7 +441,7 @@ const saveTransaction = async (wallet, fund, type, shares, amount, blockNumber, 
 
 module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migrationContract) => {
     console.log("Processing " + fund.name);
-    abiDecoder.addABI(fund.abi);
+    abiDecoder.addABI(fund.abi || fund.ABI);
 
     let getTransfersWalletToFund = {
         data: {},
@@ -641,3 +641,75 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         }
     }
 };
+
+module.exports.addWallet = async (wallet, contract = false, next) => {
+    let funds = [];
+    if (contract) funds.push(contract);
+    try {
+        let returnObjWallet = await client.query(
+            q.If(
+                q.Exists(q.Match(q.Index("wallet"), wallet)),
+                "",
+                q.Create(q.Collection("wallets"), {
+                    data: {
+                        wallet: wallet,
+                        funds: funds,
+                    },
+                })
+            )
+        );
+        return returnObjWallet;
+    } catch (err) {
+        next(ApiError.internal("Couldn't upsert wallet", err));
+        return false;
+    }
+};
+
+module.exports.getWallet = async (wallet, next) => {
+    try {
+        let returnObj = await client.query(
+            q.Map(q.Paginate(q.Match(q.Index("wallet"), wallet)), q.Lambda("x", q.Get(q.Var("x"))))
+        );
+        return returnObj;
+    } catch (err) {
+        next(ApiError.internal("Could not load wallet " + wallet, err));
+        return false;
+    }
+};
+
+module.exports.addFundToWallet = async (wallet, fund, next) => {
+    try {
+        let returnObj = await client.query(
+            q.Let(
+                {
+                    walletDoc: q.Get(q.Match(q.Index("wallet"), wallet)),
+                    fundArray: q.Select(["data", "funds"], q.Var("walletDoc")),
+                },
+                q.Update(q.Select("ref", q.Var("walletDoc")), {
+                    data: {
+                        funds: q.Append([fund], q.Var("fundArray")),
+                    },
+                })
+            )
+        );
+        return returnObj;
+    } catch (err) {
+        next(ApiError.internal("Could not add fund " + fund + " to wallet " + wallet, err));
+        return false;
+    }
+};
+
+const getFund = async (contract, next) => {
+    let returnObjFaunaGetFunds;
+    try {
+        returnObjFaunaGetFunds = await client.query(
+            q.Map(q.Paginate(q.Match(q.Index("fund_by_contract"), contract)), q.Lambda("x", q.Get(q.Var("x"))))
+        );
+    } catch (error) {
+        next(ApiError.internal("Could not load fund " + contract, error));
+        return false;
+    }
+    return returnObjFaunaGetFunds;
+};
+
+module.exports.getFund = getFund;

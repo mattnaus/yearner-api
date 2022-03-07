@@ -68,17 +68,10 @@ app.get("/v1/funds", async (req, res) => {
     res.status(200).json(funds);
 });
 
-app.get("/v1/funds/:fund", async (req, res) => {
+app.get("/v1/funds/:fund", async (req, res, next) => {
     const fund = req.params.fund;
 
-    let returnObjFaunaGetFunds;
-    try {
-        returnObjFaunaGetFunds = await client.query(
-            q.Map(q.Paginate(q.Match(q.Index("fund_by_contract"), fund)), q.Lambda("x", q.Get(q.Var("x"))))
-        );
-    } catch (error) {
-        console.log(error);
-    }
+    let returnObjFaunaGetFunds = await shared.getFund(fund, next);
 
     res.set(returnHeaders);
 
@@ -151,11 +144,38 @@ app.get("/v1/history/:ref", async (req, res) => {
 app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     const wallet = req.params.wallet.toLowerCase();
     const contract = req.params.fund.toLowerCase();
+    let updateTransactions = false;
+
+    const fund = await shared.getFund(contract, next);
 
     // verify wallet address is valid
     if (!web3.utils.isAddress(wallet)) {
         next(ApiError.internal("Provided wallet address is not valid."));
         return;
+    }
+
+    // does wallet exist?
+    let walletObj = await shared.getWallet(wallet, next);
+    // if not create
+    if (walletObj.data.length === 0) {
+        // since wallet did not exist, connection with fund also did not exist
+        await shared.addWallet(wallet, contract, next);
+        updateTransactions = true;
+    } else {
+        // wallet exists, but does it have a connection to the fund?
+        if (walletObj.data[0].data.funds.find((el) => el === contract) === undefined) {
+            // no connection
+            console.log("no connection");
+            await shared.addFundToWallet(wallet, contract, next);
+            updateTransactions = true;
+        } else {
+            // connection
+            console.log("connection");
+        }
+    }
+
+    if (updateTransactions) {
+        await shared.processTransactionsForWalletPlusFund(wallet, fund.data[0].data, process.env.MIGRATION_CONTRACT);
     }
 
     // get transaction data for wallet+fund combo
@@ -194,15 +214,22 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
         return false;
     }
 
-    //console.log(returnObjTrans);
+    console.log(returnObjTrans.transactions);
 
-    if (returnObjTrans.transactions.data.length > 0) {
+    if (returnObjTrans.transactions.data.length !== 0) {
         for (let transaction of returnObjTrans.transactions.data) {
             transaction.valueToday = shared.round2Dec(transaction.shares * returnObjTrans.sharePrice);
             transaction.perc = shared.round2Dec(
                 ((transaction.valueToday - transaction.amount) / transaction.amount) * 100
             );
         }
+    } else {
+        res.json({
+            fund: returnObjTrans.fund.data,
+            history: [],
+            transactions: [],
+        });
+        return false;
     }
 
     //console.log(returnObjTrans.transactions.data);
