@@ -34,7 +34,7 @@ app.get("/v1/funds", async (req, res) => {
     let returnObjFaunaGetFunds;
     try {
         returnObjFaunaGetFunds = await client.query(
-            q.Map(q.Paginate(q.Match(q.Index("all_funds"))), q.Lambda("x", q.Get(q.Var("x"))))
+            q.Map(q.Paginate(q.Match(q.Index("all_funds_sorted_name"))), q.Lambda(["name", "ref"], q.Get(q.Var("ref"))))
         );
     } catch (error) {
         console.log(error);
