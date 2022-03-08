@@ -442,6 +442,7 @@ const saveTransaction = async (wallet, fund, type, shares, amount, blockNumber, 
 module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migrationContract) => {
     console.log("Processing " + fund.name);
     abiDecoder.addABI(fund.abi || fund.ABI);
+    let hasTransactions = false;
 
     let getTransfersWalletToFund = {
         data: {},
@@ -474,6 +475,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
     let transfers = getTransfersWalletToFund.data.result.transfers;
 
     if (transfers.length > 0) {
+        hasTransactions = true;
         // next block deals with regular transfers
         console.log("Processing regular transactions.");
 
@@ -532,7 +534,14 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
             data: {},
         };
         while (getTransfersWalletToFund.data.result === undefined) {
-            console.log("Attempting to get transfers from " + wallet + " to " + migrationContract);
+            console.log(
+                "Attempting to get transfers from " +
+                    wallet +
+                    " to " +
+                    migrationContract +
+                    ", from block 0x" +
+                    fund.activationBlock.block.toString(16)
+            );
             getTransfersWalletToFund = await axios({
                 method: "post",
                 url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
@@ -581,7 +590,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                     })
                 );*/
 
-                // we need to start by determining this transaction is relevant
+                // we need to start by determining if this transaction is relevant
                 // we do this by locating a log item that transfers funds from the migrationContract
                 // to the fund contract. If this log exists, it's relevant
                 let results0 = decodedLogs.filter((event) => {
@@ -597,6 +606,9 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                 if (results0.length === 0) {
                     break;
                 }
+
+                // we're still here, so we have relevant transfers
+                hasTransactions = true;
 
                 // get the AMOUNT part (tokens transferred from wallet to migration contract)
                 let results = decodedLogs.filter((event) => {
@@ -640,11 +652,47 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
             }
         }
     }
+
+    if (!hasTransactions) {
+        try {
+            let returnObj = await client.query(
+                q.Map(q.Paginate(q.Match(q.Index("wallet"), wallet)), q.Lambda("x", q.Get(q.Var("x"))))
+            );
+
+            let funds = returnObj.data[0].data.funds;
+            console.log("the funds array: ", funds);
+
+            const updatedFunds = funds.map((obj) => {
+                if (obj.fund === fund.contract) {
+                    return { ...obj, trans: false };
+                }
+
+                return obj;
+            });
+            console.log("the funds array: ", updatedFunds);
+
+            try {
+                await client.query(
+                    q.Update(returnObj.data[0].ref, {
+                        data: {
+                            funds: updatedFunds,
+                        },
+                    })
+                );
+            } catch (err) {
+                console.log("Could not update wallet");
+            }
+        } catch (err) {
+            console.log("Could not retrieve wallet data");
+        }
+    }
+
+    return hasTransactions;
 };
 
 module.exports.addWallet = async (wallet, contract = false, next) => {
     let funds = [];
-    if (contract) funds.push(contract);
+    if (contract) funds.push({ fund: contract, trans: true });
     try {
         let returnObjWallet = await client.query(
             q.If(
@@ -687,7 +735,7 @@ module.exports.addFundToWallet = async (wallet, fund, next) => {
                 },
                 q.Update(q.Select("ref", q.Var("walletDoc")), {
                     data: {
-                        funds: q.Append([fund], q.Var("fundArray")),
+                        funds: q.Append([{ fund: fund, trans: true }], q.Var("fundArray")),
                     },
                 })
             )

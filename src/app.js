@@ -156,17 +156,20 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
 
     // does wallet exist?
     let walletObj = await shared.getWallet(wallet, next);
+
     // if not create
     if (walletObj.data.length === 0) {
         // since wallet did not exist, connection with fund also did not exist
         await shared.addWallet(wallet, contract, next);
+        walletObj = await shared.getWallet(wallet, next);
         updateTransactions = true;
     } else {
         // wallet exists, but does it have a connection to the fund?
-        if (walletObj.data[0].data.funds.find((el) => el === contract) === undefined) {
+        if (walletObj.data[0].data.funds.find((el) => el.fund === contract) === undefined) {
             // no connection
             console.log("no connection");
             await shared.addFundToWallet(wallet, contract, next);
+            walletObj = await shared.getWallet(wallet, next);
             updateTransactions = true;
         } else {
             // connection
@@ -174,8 +177,16 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
         }
     }
 
+    /*res.json({
+        fund: fund.data[0].data,
+        history: [],
+        transactions: [],
+    });
+    return false;*/
+
     if (updateTransactions) {
-        await shared.processTransactionsForWalletPlusFund(wallet, fund.data[0].data, process.env.MIGRATION_CONTRACT);
+        // let's run this asynchronously as to not hold everything up
+        shared.processTransactionsForWalletPlusFund(wallet, fund.data[0].data, process.env.MIGRATION_CONTRACT);
     }
 
     // get transaction data for wallet+fund combo
@@ -224,10 +235,14 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
             );
         }
     } else {
+        // Ok, so no transaction data for this wallet + fund combo
+        // is that a currently definitive NO?
+        console.log(walletObj.data[0].data.funds.find((el) => el.fund === contract).trans);
+
         res.json({
             fund: returnObjTrans.fund.data,
-            history: [],
-            transactions: [],
+            history: walletObj.data[0].data.funds.find((el) => el.fund === contract).trans ? [] : false,
+            transactions: walletObj.data[0].data.funds.find((el) => el.fund === contract).trans ? [] : false,
         });
         return false;
     }
