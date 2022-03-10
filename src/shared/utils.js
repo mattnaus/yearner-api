@@ -347,10 +347,12 @@ module.exports.getAllWallets = async () => {
                             funds: q.Map(
                                 q.Select(["data", "funds"], q.Var("wallet")),
                                 q.Lambda(
-                                    "addr",
+                                    "fund",
                                     q.Let(
                                         {
-                                            fundDoc: q.Get(q.Match(q.Index("fund_by_contract"), q.Var("addr"))),
+                                            fundDoc: q.Get(
+                                                q.Match(q.Index("fund_by_contract"), q.Select("fund", q.Var("fund")))
+                                            ),
                                         },
                                         {
                                             name: q.Select(["data", "name"], q.Var("fundDoc")),
@@ -367,7 +369,7 @@ module.exports.getAllWallets = async () => {
             )
         );
     } catch (error) {
-        next(ApiError.internal("Can not load wallets ", err));
+        console.log("Can not load wallets ");
         return false;
     }
 
@@ -444,6 +446,8 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
     abiDecoder.addABI(fund.abi || fund.ABI);
     let hasTransactions = false;
 
+    console.log("hasTransactions", hasTransactions);
+
     let getTransfersWalletToFund = {
         data: {},
     };
@@ -475,7 +479,9 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
     let transfers = getTransfersWalletToFund.data.result.transfers;
 
     if (transfers.length > 0) {
+        console.log("Found regular transactions");
         hasTransactions = true;
+        console.log("hasTransactions", hasTransactions);
         // next block deals with regular transfers
         console.log("Processing regular transactions.");
 
@@ -608,7 +614,9 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                 }
 
                 // we're still here, so we have relevant transfers
+                console.log("Found migration transactions");
                 hasTransactions = true;
+                console.log("hasTransactions", hasTransactions);
 
                 // get the AMOUNT part (tokens transferred from wallet to migration contract)
                 let results = decodedLogs.filter((event) => {
@@ -653,38 +661,39 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         }
     }
 
-    if (!hasTransactions) {
-        try {
-            let returnObj = await client.query(
-                q.Map(q.Paginate(q.Match(q.Index("wallet"), wallet)), q.Lambda("x", q.Get(q.Var("x"))))
-            );
+    console.log("Done processing transactions");
+    console.log("hasTransactions", hasTransactions);
 
-            let funds = returnObj.data[0].data.funds;
-            console.log("the funds array: ", funds);
+    try {
+        let returnObj = await client.query(
+            q.Map(q.Paginate(q.Match(q.Index("wallet"), wallet)), q.Lambda("x", q.Get(q.Var("x"))))
+        );
 
-            const updatedFunds = funds.map((obj) => {
-                if (obj.fund === fund.contract) {
-                    return { ...obj, trans: false };
-                }
+        let funds = returnObj.data[0].data.funds;
+        console.log("the funds array: ", funds);
 
-                return obj;
-            });
-            console.log("the funds array: ", updatedFunds);
-
-            try {
-                await client.query(
-                    q.Update(returnObj.data[0].ref, {
-                        data: {
-                            funds: updatedFunds,
-                        },
-                    })
-                );
-            } catch (err) {
-                console.log("Could not update wallet");
+        const updatedFunds = funds.map((obj) => {
+            if (obj.fund === fund.contract) {
+                return { ...obj, trans: hasTransactions };
             }
+
+            return obj;
+        });
+        console.log("the funds array: ", updatedFunds);
+
+        try {
+            await client.query(
+                q.Update(returnObj.data[0].ref, {
+                    data: {
+                        funds: updatedFunds,
+                    },
+                })
+            );
         } catch (err) {
-            console.log("Could not retrieve wallet data");
+            console.log("Could not update wallet");
         }
+    } catch (err) {
+        console.log("Could not retrieve wallet data");
     }
 
     return hasTransactions;
