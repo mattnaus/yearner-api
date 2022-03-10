@@ -21,7 +21,7 @@ cron.schedule(
 );
 
 cron.schedule(
-    "45 11 * * *",
+    "15 11 * * *",
     () => {
         updateTransactions();
     },
