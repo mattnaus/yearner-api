@@ -203,9 +203,9 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
                     name: q.Select(["data", "name"], q.Var("fund")),
                     sharePrice: q.Select(["data", "sharePrice"], q.Var("fund")),
                     transactions: q.Map(
-                        q.Paginate(q.Match(q.Index("trans_by_wallet_by_fund"), wallet, contract)),
+                        q.Paginate(q.Match(q.Index("trans_by_wallet_by_fund_ordered_date_desc"), wallet, contract)),
                         q.Lambda(
-                            "trans",
+                            ["date", "trans"],
                             q.Let(
                                 { transaction: q.Get(q.Var("trans")) },
                                 {
@@ -343,14 +343,14 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     res.send(wallet);
 });*/
 
-/*app.get("/v1/updateFund/:fund", async (req, res) => {
+app.get("/v1/updateFund/:fund", async (req, res) => {
     const fund = req.params.fund;
 
     //console.log(fund);
     await shared.updateContract(fund);
 
     res.send(fund);
-});*/
+});
 
 app.get("/v2/funds", async (req, res) => {
     // grab all funds
