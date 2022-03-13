@@ -343,14 +343,14 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     res.send(wallet);
 });*/
 
-app.get("/v1/updateFund/:fund", async (req, res) => {
+/*app.get("/v1/updateFund/:fund", async (req, res) => {
     const fund = req.params.fund;
 
     //console.log(fund);
     await shared.updateContract(fund);
 
     res.send(fund);
-});
+});*/
 
 app.get("/v2/funds", async (req, res) => {
     // grab all funds
