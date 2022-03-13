@@ -414,6 +414,14 @@ module.exports.getWalletPlusFunds = async (wallet, next) => {
     return returnObjFaunaGetWallet;
 };
 
+const moveDecPoint = (places) => {
+    let str = "1";
+    for (let x = 0; x < places; x++) {
+        str += "0";
+    }
+    return Number(str);
+};
+
 const saveTransaction = async (wallet, fund, type, shares, amount, blockNumber, timestamp, hash, next) => {
     let saveTransaction;
     try {
@@ -442,17 +450,22 @@ const saveTransaction = async (wallet, fund, type, shares, amount, blockNumber, 
 };
 
 module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migrationContract) => {
-    console.log("Processing " + fund.name);
+    console.log("Processing " + fund.name + ", IN transactions.");
     abiDecoder.addABI(fund.abi || fund.ABI);
     let hasTransactions = false;
+
+    const instance = new web3.eth.Contract(fund.abi || fund.ABI, fund.contract);
+    const decimals = await instance.methods.decimals().call();
+    const nrDecimals = moveDecPoint(decimals);
 
     console.log("hasTransactions", hasTransactions);
 
     let getTransfersWalletToFund = {
         data: {},
     };
+    // processing IN transactions
     while (getTransfersWalletToFund.data.result === undefined) {
-        console.log("Attempting to get transfers from " + wallet + " to " + fund.contract);
+        console.log("Attempting to get IN transfers from " + wallet + " to " + fund.contract);
         getTransfersWalletToFund = await axios({
             method: "post",
             url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
@@ -474,12 +487,12 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         });
     }
 
-    console.log("Succeeded in loading transactions");
+    console.log("Succeeded in loading IN transactions");
 
     let transfers = getTransfersWalletToFund.data.result.transfers;
 
     if (transfers.length > 0) {
-        console.log("Found regular transactions");
+        console.log("Found regular IN transactions");
         hasTransactions = true;
         console.log("hasTransactions", hasTransactions);
         // next block deals with regular transfers
@@ -514,13 +527,11 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                             parseInt(getTransactionReceipt.data.result.blockNumber, 16)
                         );
 
-                        let amount = web3.utils.fromWei(event.events.find((y) => y.name === "value").value, "ether");
-
                         saveTransaction(
                             wallet,
                             fund.contract,
                             "in",
-                            web3.utils.fromWei(event.events.find((y) => y.name === "value").value, "ether"),
+                            Number(event.events.find((y) => y.name === "value").value) / nrDecimals,
                             trans.value,
                             getTransactionReceipt.data.result.blockNumber,
                             block.timestamp,
@@ -629,7 +640,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                     );
                 });
 
-                let amount = round2Dec(Number(web3.utils.fromWei(results[0].events[2].value, "ether")));
+                let amount = round2Dec(Number(results[0].events[2].value) / nrDecimals);
 
                 // get the number of shares transferred to wallet from migrationContract
                 let results2 = decodedLogs.filter((event) => {
@@ -642,7 +653,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                     );
                 });
 
-                let shares = round2Dec(Number(web3.utils.fromWei(results2[0].events[2].value, "ether")));
+                let shares = round2Dec(Number(results2[0].events[2].value) / nrDecimals);
 
                 // figure out the date that goes with the block number for the current transaction
                 let block = await web3.eth.getBlock(parseInt(trans.blockNum, 16));
@@ -657,6 +668,87 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
                     block.timestamp,
                     getTransactionReceipt.data.result.transactionHash
                 );
+            }
+        }
+    }
+
+    console.log("Processing " + fund.name + ", OUT transactions.");
+
+    let getTransfersFundToWalletOUT = {
+        data: {},
+    };
+    while (getTransfersFundToWalletOUT.data.result === undefined) {
+        console.log("Attempting to get IN transfers from " + wallet + " to " + fund.contract);
+        getTransfersFundToWalletOUT = await axios({
+            method: "post",
+            url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            data: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 0,
+                method: "alchemy_getAssetTransfers",
+                params: [
+                    {
+                        fromBlock: "0x" + fund.activationBlock.block.toString(16),
+                        toAddress: wallet,
+                        fromAddress: fund.contract.toLowerCase(),
+                    },
+                ],
+            }),
+        });
+    }
+
+    transfers = getTransfersFundToWalletOUT.data.result.transfers;
+
+    if (transfers.length > 0) {
+        console.log("Found regular OUT transactions");
+        hasTransactions = true;
+        console.log("hasTransactions", hasTransactions);
+        // next block deals with regular transfers
+        console.log("Processing regular transactions.");
+
+        for (let trans of transfers) {
+            let getTransactionReceipt = await axios({
+                method: "post",
+                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                data: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 0,
+                    method: "eth_getTransactionReceipt",
+                    params: [trans.hash],
+                }),
+            });
+
+            let decodedLogs = abiDecoder.decodeLogs(getTransactionReceipt.data.result.logs);
+
+            for (let event of decodedLogs) {
+                if (event.name === "Transfer") {
+                    // only process Transfer type events
+                    // find the "receiver" object (should be the fund, since shares are being sold)
+                    if (event.events.find((x) => x.name === "sender").value === wallet) {
+                        console.log(event);
+                        // figure out the date that goes with the block number for the current transaction
+                        let block = await web3.eth.getBlock(
+                            parseInt(getTransactionReceipt.data.result.blockNumber, 16)
+                        );
+
+                        saveTransaction(
+                            wallet,
+                            fund.contract,
+                            "out",
+                            Number(event.events.find((y) => y.name === "value").value) / nrDecimals,
+                            trans.value,
+                            getTransactionReceipt.data.result.blockNumber,
+                            block.timestamp,
+                            getTransactionReceipt.data.result.transactionHash
+                        );
+                    }
+                }
             }
         }
     }
