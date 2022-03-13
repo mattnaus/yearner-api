@@ -10,7 +10,7 @@ const client = new fauna.Client({
 });
 
 cron.schedule(
-    "17 11 * * *",
+    "30 9 * * *",
     () => {
         update();
     },
