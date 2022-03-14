@@ -291,7 +291,8 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
 
         let adjustment = returnObjTrans.transactions.data.find((x) => x.date === dateString);
 
-        if (adjustment && adjustment.type) totalShares += adjustment.shares;
+        if (adjustment && adjustment.type === "in") totalShares += adjustment.shares;
+        if (adjustment && adjustment.type === "out") totalShares -= adjustment.shares;
 
         if (totalShares === 0) continue;
 
