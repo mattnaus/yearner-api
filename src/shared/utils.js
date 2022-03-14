@@ -109,6 +109,8 @@ module.exports.updateContract = async (fund) => {
     }
 
     const instance = new web3.eth.Contract(contractABI, fund.data.contract);
+    const decimals = await instance.methods.decimals().call();
+    const nrDecimals = moveDecPoint(decimals);
 
     // if there's no activation data, let's sort that out
     let block;
@@ -156,7 +158,7 @@ module.exports.updateContract = async (fund) => {
 
         let dString = dateFormat(d);
 
-        let perShareEth = web3.utils.fromWei(perShare, "ether");
+        let perShareEth = Number(perShare) / nrDecimals;
         console.log("-- " + dString, block.block, perShareEth);
 
         // add entry to database
@@ -308,8 +310,8 @@ module.exports.updateContract = async (fund) => {
             q.Update(fund.ref, {
                 data: {
                     sharePrice: sharePriceToday,
-                    totalAssets: round2Dec(Number(web3.utils.fromWei(totalAssets, "ether"))),
-                    availableShares: round2Dec(Number(web3.utils.fromWei(availableShares, "ether"))),
+                    totalAssets: round2Dec(Number(totalAsset) / nrDecimals),
+                    availableShares: round2Dec(Number(availableShares) / nrDecimals),
                     tokenSymbol: tokenSymbol,
                     stats: {
                         _all: round2Dec(percAll),
