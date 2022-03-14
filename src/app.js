@@ -225,7 +225,7 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
         return false;
     }
 
-    console.log(returnObjTrans.transactions);
+    //console.log(returnObjTrans.transactions);
 
     if (returnObjTrans.transactions.data.length !== 0) {
         for (let transaction of returnObjTrans.transactions.data) {
@@ -343,14 +343,14 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
     res.send(wallet);
 });*/
 
-/*app.get("/v1/updateFund/:fund", async (req, res) => {
+app.get("/v1/updateFund/:fund", async (req, res) => {
     const fund = req.params.fund;
 
     //console.log(fund);
     await shared.updateContract(fund);
 
     res.send(fund);
-});*/
+});
 
 app.get("/v2/funds", async (req, res) => {
     // grab all funds
