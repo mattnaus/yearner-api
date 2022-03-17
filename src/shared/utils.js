@@ -67,6 +67,7 @@ module.exports.updateContract = async (fund) => {
         } catch (error) {
             console.log(error);
         }
+        //console.log(returnObjFaunaGetFunds);
         if (returnObjFaunaGetFunds.data.length !== 0) {
             fund = returnObjFaunaGetFunds.data[0];
         } else {
@@ -303,14 +304,14 @@ module.exports.updateContract = async (fund) => {
     const totalAssets = await instance.methods.totalAssets().call();
     const availableShares = await instance.methods.maxAvailableShares().call();
     const tokenSymbol = await instance.methods.symbol().call();
-    const tokenContract = await instance.methods.token().call();
+    //const tokenContract = await instance.methods.token().call();
 
     try {
         let returnObjFaunaUpdateFund = client.query(
             q.Update(fund.ref, {
                 data: {
                     sharePrice: sharePriceToday,
-                    totalAssets: round2Dec(Number(totalAsset) / nrDecimals),
+                    totalAssets: round2Dec(Number(totalAssets) / nrDecimals),
                     availableShares: round2Dec(Number(availableShares) / nrDecimals),
                     tokenSymbol: tokenSymbol,
                     stats: {
