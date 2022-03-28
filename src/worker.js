@@ -36,7 +36,7 @@ const update = async () => {
     let returnObjFaunaGetFunds;
     try {
         returnObjFaunaGetFunds = await client.query(
-            q.Map(q.Paginate(q.Match(q.Index("all_funds"))), q.Lambda("x", q.Get(q.Var("x"))))
+            q.Map(q.Paginate(q.Match(q.Index("all_funds")), { size: 100 }), q.Lambda("x", q.Get(q.Var("x"))))
         );
     } catch (error) {
         console.log(error);
