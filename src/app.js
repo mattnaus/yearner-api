@@ -353,6 +353,14 @@ app.get("/v1/updateFund/:fund", async (req, res) => {
     res.send(fund);
 });
 
+app.get("/v1/updateCurvePool/:fund", async (req, res) => {
+    const fund = req.params.fund;
+
+    await shared.updateCurvePool(fund);
+
+    res.send(fund);
+});
+
 app.get("/v2/funds", async (req, res) => {
     // grab all funds
     let returnObjFaunaGetFunds;

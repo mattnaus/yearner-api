@@ -56,7 +56,166 @@ const getHistoryItem = async (contract, date) => {
     else return false;
 };
 
+const getAssetPrice = async (data) => {
+    let url,
+        priceData = {
+            usd: 0,
+            eur: 0,
+        };
+
+    if (data.type === "erc20") {
+        url =
+            "https://api.coingecko.com/api/v3/simple/token_price/ethereum/?contract_addresses=" +
+            data.contract +
+            "&vs_currencies=usd%2Ceur";
+    } else if (data.type === "asset") {
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=" + data.asset + "&vs_currencies=usd%2Ceur";
+    }
+
+    try {
+        let getAssetPrice = await axios({
+            method: "get",
+            url: url,
+            headers: {
+                accept: "application/json",
+            },
+        });
+        if (Object.keys(getAssetPrice.data)[0] !== undefined)
+            priceData = getAssetPrice.data[Object.keys(getAssetPrice.data)[0]];
+    } catch (error) {
+        console.log("Could not get price data for ", data, error);
+        return false;
+    }
+
+    return priceData;
+};
+
+const updateCurvePool = async (fund) => {
+    let poolABI;
+
+    console.log("-- processing Curve pool " + fund);
+
+    if (typeof fund === "string") {
+        // only for contract string, fetch fund from db
+        let returnObjFaunaGetCurve;
+        try {
+            returnObjFaunaGetCurve = await client.query(
+                q.Map(
+                    q.Paginate(q.Match(q.Index("curvepools_by_contract"), fund)),
+                    q.Lambda(
+                        "x",
+                        q.Let(
+                            {
+                                pool: q.Get(q.Var("x")),
+                            },
+                            {
+                                ref: q.Var("x"),
+                                contract: q.Select(["data", "contract"], q.Var("pool")),
+                                token: q.Let(
+                                    {
+                                        tokenDoc: q.Get(
+                                            q.Match(
+                                                q.Index("assets_by_contract"),
+                                                q.Select(["data", "token"], q.Var("pool"))
+                                            )
+                                        ),
+                                    },
+                                    {
+                                        name: q.Select(["data", "name"], q.Var("tokenDoc")),
+                                        contract: q.Select(["data", "contract"], q.Var("tokenDoc")),
+                                        decimals: q.Select(["data", "decimals"], q.Var("tokenDoc")),
+                                        ABI: q.Select(["data", "ABI"], q.Var("tokenDoc")),
+                                    }
+                                ),
+                                name: q.Select(["data", "name"], q.Var("pool")),
+                                ABI: q.Select(["data", "ABI"], q.Var("pool")),
+                                assets: q.Map(
+                                    q.Select(["data", "assets"], q.Var("pool")),
+                                    q.Lambda(
+                                        "asset",
+                                        q.Let(
+                                            {
+                                                assetDoc: q.Get(
+                                                    q.Match(
+                                                        q.Index("assets_by_contract"),
+                                                        q.Select("contract", q.Var("asset"))
+                                                    )
+                                                ),
+                                            },
+                                            {
+                                                id: q.Select("id", q.Var("asset")),
+                                                name: q.Select(["data", "name"], q.Var("assetDoc")),
+                                                contract: q.Select("contract", q.Var("asset")),
+                                                decimals: q.Select(["data", "decimals"], q.Var("assetDoc")),
+                                                amount: q.Select("amount", q.Var("asset")),
+                                                alt: q.Select("alt", q.Var("asset"), null),
+                                            }
+                                        )
+                                    )
+                                ),
+                            }
+                        )
+                    )
+                )
+            );
+        } catch (error) {
+            console.log(error);
+        }
+        if (returnObjFaunaGetCurve.data.length !== 0) {
+            pool = returnObjFaunaGetCurve.data[0];
+        } else {
+            return false;
+        }
+    }
+
+    console.log("-- Pool name: " + pool.name);
+
+    const curvePoolInstance = new web3.eth.Contract(pool.ABI, pool.contract);
+
+    console.log("-- determine amounts for each asset in this pool");
+
+    // update asset amounts for all assets in the pool
+    for (let asset of pool.assets) {
+        console.log("-- getting amount for " + asset.name);
+        let nrDecimals = moveDecPoint(asset.decimals);
+
+        let amount = await curvePoolInstance.methods.balances(asset.id).call();
+        let amountProcessed = amount / nrDecimals;
+        asset.amount = amountProcessed;
+
+        console.log("-- amount in pool: " + amountProcessed);
+
+        delete asset.decimals;
+    }
+
+    // determine number of outstanding LP tokens
+    const curvePoolTokenInstance = new web3.eth.Contract(pool.token.ABI, pool.token.contract);
+
+    const outStandingTokens = await curvePoolTokenInstance.methods.totalSupply().call();
+    const outStandingTokensProcessed = Number(outStandingTokens) / moveDecPoint(pool.token.decimals);
+    console.log("-- Total supply for " + pool.name, outStandingTokensProcessed);
+
+    console.log("-- saving updated pool data to db");
+
+    try {
+        let returnObjSavePool = await client.query(
+            q.Update(pool.ref, {
+                data: {
+                    assets: pool.assets,
+                    tokenSupply: outStandingTokensProcessed,
+                },
+            })
+        );
+    } catch (error) {
+        console.log("Could nt update pool data ", error);
+    }
+};
+
+module.exports.updateCurvePool = updateCurvePool;
+
 module.exports.updateContract = async (fund) => {
+    let theAssetPrices = {};
+
     if (typeof fund === "string") {
         // only for contract string, fetch fund from db
         let returnObjFaunaGetFunds;
@@ -179,24 +338,127 @@ module.exports.updateContract = async (fund) => {
         }
     }
 
+    // for Curve vaults, let figure out the current LP token price
+    // non-curve faults won't have this property
+    if (fund.data.poolContract !== undefined) {
+        console.log("-- Underlying asset is a Curve LP token");
+        // this is a curve vault, with a poolContract
+        // anything stored for fund.data.poolContract?
+        let poolContractABI;
+
+        let returnObjPoolContract;
+        try {
+            returnObjPoolContract = await client.query(
+                q.Map(
+                    q.Paginate(q.Match(q.Index("curvepools_by_contract"), fund.data.poolContract)),
+                    q.Lambda("x", q.Get(q.Var("x")))
+                )
+            );
+        } catch (err) {
+            console.log("Could not query db for Curve pool data");
+        }
+
+        console.log("-- ABI stored for pool contract, using ...");
+        poolContractABI = returnObjPoolContract.data[0].data.ABI;
+
+        // let's determine the value for this pool's LP token
+        console.log("-- determine total value of pool");
+        let returnObjPool;
+        try {
+            returnObjPool = await client.query(
+                q.Map(
+                    q.Paginate(q.Match(q.Index("curvepools_by_contract"), fund.data.poolContract)),
+                    q.Lambda("x", q.Get(q.Var("x")))
+                )
+            );
+        } catch (error) {
+            console.log("Could not load pool data for " + fund.data.poolContract, error);
+        }
+
+        if (returnObjPool.data.length > 0) {
+            console.log("-- looping through pool assets");
+            let totalValuePool = {
+                usd: 0,
+                eur: 0,
+            };
+            let lpTokenPrices = {
+                usd: 0,
+                eur: 0,
+            };
+            for (let asset of returnObjPool.data[0].data.assets) {
+                const totalValueAsset = {};
+
+                console.log("-- processing: " + asset.name);
+                //console.log(asset);
+
+                let priceData = {
+                    usd: 0,
+                    eur: 0,
+                };
+
+                let addr = asset.alt !== undefined ? asset.alt.contract : asset.contract;
+                console.log("addr", addr);
+
+                if (asset.name === "ETH") {
+                    priceData = await getAssetPrice({ type: "asset", asset: "ethereum" });
+                } else {
+                    priceData = await getAssetPrice({ type: "erc20", contract: addr });
+                }
+
+                console.log("-- priceData for " + asset.name, priceData);
+
+                if (priceData.usd !== undefined) {
+                    totalValueAsset.usd = asset.amount * priceData.usd;
+                    totalValuePool.usd += totalValueAsset.usd;
+                    console.log("-- total value for " + asset.name + " in USD: " + totalValueAsset.usd);
+                    console.log("-- total value entire pool in USD: " + totalValuePool.usd);
+                }
+                if (priceData.eur !== undefined) {
+                    totalValueAsset.eur = asset.amount * priceData.eur;
+                    totalValuePool.eur += totalValueAsset.eur;
+                    console.log("-- total value for " + asset.name + " in EUR: " + totalValueAsset.eur);
+                    console.log("-- total value entire pool in EUR: " + totalValuePool.eur);
+                }
+
+                asset.totalValueAsset = totalValueAsset;
+                console.log("-- pool total value after processing " + asset.name, totalValuePool);
+            }
+
+            // calculate LP token prices
+            lpTokenPrices.usd = totalValuePool.usd / returnObjPool.data[0].data.tokenSupply;
+            lpTokenPrices.eur = totalValuePool.eur / returnObjPool.data[0].data.tokenSupply;
+
+            theAssetPrices = lpTokenPrices;
+
+            console.log("-- calculated LP token prices: ", lpTokenPrices);
+        }
+    } else {
+        // underlying asset is not a Curve LP token, assuming underlying asset is an erc20 token
+        console.log("-- Underlying asset is a regular erc20 token.");
+        let priceData = await getAssetPrice({ type: "erc20", contract: fund.data.underlyingAssetContract });
+        theAssetPrices.usd = priceData.usd;
+        theAssetPrices.eur = priceData.eur;
+        console.log("-- Calculated " + fund.data.underlyingAsset + " prices", priceData);
+    }
+
     // set statistics: all time, 1y, 3m, 1m, 1w
     console.log("-- calculate some statistics...");
 
     let activationDate = new Date(fund.data.activationBlock.date);
-    activationDate.setDate(activationDate.getDate() + 1);
+    activationDate.setDate(activationDate.getDate() + 2);
 
     // all time
     let historyItem = await getHistoryItem(fund.data.contract, dateFormat(today));
-
     sharePriceToday = historyItem.value;
 
     let valueToday = Number(historyItem.value);
+    //console.log("activationDate ", dateFormat(activationDate));
     historyItem = await getHistoryItem(fund.data.contract, dateFormat(activationDate));
-    console.log("valueToday", valueToday);
-    console.log("historyItem", historyItem);
-    console.log("date", dateFormat(activationDate));
+    //console.log("valueToday", valueToday);
+    //console.log("historyItem", historyItem);
+    //console.log("date", dateFormat(activationDate));
     let difference = valueToday - Number(historyItem.value);
-    console.log("difference", difference);
+    //console.log("difference", difference);
     let percAll = (difference / Number(historyItem.value)) * 100;
 
     console.log("-- all time: " + round2Dec(percAll) + "%");
@@ -306,23 +568,29 @@ module.exports.updateContract = async (fund) => {
     const tokenSymbol = await instance.methods.symbol().call();
     //const tokenContract = await instance.methods.token().call();
 
+    let upData = {
+        sharePrice: sharePriceToday,
+        totalAssets: round2Dec(Number(totalAssets) / nrDecimals),
+        availableShares: round2Dec(Number(availableShares) / nrDecimals),
+        tokenSymbol: tokenSymbol,
+        stats: {
+            _all: round2Dec(percAll),
+            _1year: round2Dec(perc1Year),
+            _3months: round2Dec(perc3Months),
+            _1month: round2Dec(perc1Month),
+            _1week: round2Dec(perc1Week),
+            _ytd: round2Dec(perc1Ytd),
+        },
+    };
+
+    let value = fund.data.value;
+    value = theAssetPrices;
+    upData.value = value;
+
     try {
         let returnObjFaunaUpdateFund = client.query(
             q.Update(fund.ref, {
-                data: {
-                    sharePrice: sharePriceToday,
-                    totalAssets: round2Dec(Number(totalAssets) / nrDecimals),
-                    availableShares: round2Dec(Number(availableShares) / nrDecimals),
-                    tokenSymbol: tokenSymbol,
-                    stats: {
-                        _all: round2Dec(percAll),
-                        _1year: round2Dec(perc1Year),
-                        _3months: round2Dec(perc3Months),
-                        _1month: round2Dec(perc1Month),
-                        _1week: round2Dec(perc1Week),
-                        _ytd: round2Dec(perc1Ytd),
-                    },
-                },
+                data: upData,
             })
         );
     } catch (error) {
@@ -338,7 +606,7 @@ module.exports.getAllWallets = async () => {
     try {
         returnObjFaunaGetWallets = await client.query(
             q.Map(
-                q.Paginate(q.Match(q.Index("all_wallets"))),
+                q.Paginate(q.Match(q.Index("all_wallets")), { size: 100000 }),
                 q.Lambda(
                     "x",
                     q.Let(
@@ -372,7 +640,7 @@ module.exports.getAllWallets = async () => {
             )
         );
     } catch (error) {
-        console.log("Can not load wallets ");
+        console.log("Can not load wallets ", error);
         return false;
     }
 
