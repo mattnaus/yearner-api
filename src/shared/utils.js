@@ -90,82 +90,78 @@ const getAssetPrice = async (data) => {
     return priceData;
 };
 
-const updateCurvePool = async (fund) => {
-    let poolABI;
+const updateCurvePool = async (poolAddr) => {
+    console.log("-- processing Curve pool " + poolAddr);
 
-    console.log("-- processing Curve pool " + fund);
-
-    if (typeof fund === "string") {
-        // only for contract string, fetch fund from db
-        let returnObjFaunaGetCurve;
-        try {
-            returnObjFaunaGetCurve = await client.query(
-                q.Map(
-                    q.Paginate(q.Match(q.Index("curvepools_by_contract"), fund)),
-                    q.Lambda(
-                        "x",
-                        q.Let(
-                            {
-                                pool: q.Get(q.Var("x")),
-                            },
-                            {
-                                ref: q.Var("x"),
-                                contract: q.Select(["data", "contract"], q.Var("pool")),
-                                token: q.Let(
-                                    {
-                                        tokenDoc: q.Get(
-                                            q.Match(
-                                                q.Index("assets_by_contract"),
-                                                q.Select(["data", "token"], q.Var("pool"))
-                                            )
-                                        ),
-                                    },
-                                    {
-                                        name: q.Select(["data", "name"], q.Var("tokenDoc")),
-                                        contract: q.Select(["data", "contract"], q.Var("tokenDoc")),
-                                        decimals: q.Select(["data", "decimals"], q.Var("tokenDoc")),
-                                        ABI: q.Select(["data", "ABI"], q.Var("tokenDoc")),
-                                    }
-                                ),
-                                name: q.Select(["data", "name"], q.Var("pool")),
-                                ABI: q.Select(["data", "ABI"], q.Var("pool")),
-                                assets: q.Map(
-                                    q.Select(["data", "assets"], q.Var("pool")),
-                                    q.Lambda(
-                                        "asset",
-                                        q.Let(
-                                            {
-                                                assetDoc: q.Get(
-                                                    q.Match(
-                                                        q.Index("assets_by_contract"),
-                                                        q.Select("contract", q.Var("asset"))
-                                                    )
-                                                ),
-                                            },
-                                            {
-                                                id: q.Select("id", q.Var("asset")),
-                                                name: q.Select(["data", "name"], q.Var("assetDoc")),
-                                                contract: q.Select("contract", q.Var("asset")),
-                                                decimals: q.Select(["data", "decimals"], q.Var("assetDoc")),
-                                                amount: q.Select("amount", q.Var("asset")),
-                                                alt: q.Select("alt", q.Var("asset"), null),
-                                            }
+    // only for contract string, fetch fund from db
+    let returnObjFaunaGetCurve;
+    try {
+        returnObjFaunaGetCurve = await client.query(
+            q.Map(
+                q.Paginate(q.Match(q.Index("curvepools_by_contract"), poolAddr)),
+                q.Lambda(
+                    "x",
+                    q.Let(
+                        {
+                            pool: q.Get(q.Var("x")),
+                        },
+                        {
+                            ref: q.Var("x"),
+                            contract: q.Select(["data", "contract"], q.Var("pool")),
+                            token: q.Let(
+                                {
+                                    tokenDoc: q.Get(
+                                        q.Match(
+                                            q.Index("assets_by_contract"),
+                                            q.Select(["data", "token"], q.Var("pool"))
                                         )
+                                    ),
+                                },
+                                {
+                                    name: q.Select(["data", "name"], q.Var("tokenDoc")),
+                                    contract: q.Select(["data", "contract"], q.Var("tokenDoc")),
+                                    decimals: q.Select(["data", "decimals"], q.Var("tokenDoc")),
+                                    ABI: q.Select(["data", "ABI"], q.Var("tokenDoc")),
+                                }
+                            ),
+                            name: q.Select(["data", "name"], q.Var("pool")),
+                            ABI: q.Select(["data", "ABI"], q.Var("pool")),
+                            assets: q.Map(
+                                q.Select(["data", "assets"], q.Var("pool")),
+                                q.Lambda(
+                                    "asset",
+                                    q.Let(
+                                        {
+                                            assetDoc: q.Get(
+                                                q.Match(
+                                                    q.Index("assets_by_contract"),
+                                                    q.Select("contract", q.Var("asset"))
+                                                )
+                                            ),
+                                        },
+                                        {
+                                            id: q.Select("id", q.Var("asset")),
+                                            name: q.Select(["data", "name"], q.Var("assetDoc")),
+                                            contract: q.Select("contract", q.Var("asset")),
+                                            decimals: q.Select(["data", "decimals"], q.Var("assetDoc")),
+                                            amount: q.Select("amount", q.Var("asset")),
+                                            alt: q.Select("alt", q.Var("asset"), null),
+                                        }
                                     )
-                                ),
-                            }
-                        )
+                                )
+                            ),
+                        }
                     )
                 )
-            );
-        } catch (error) {
-            console.log(error);
-        }
-        if (returnObjFaunaGetCurve.data.length !== 0) {
-            pool = returnObjFaunaGetCurve.data[0];
-        } else {
-            return false;
-        }
+            )
+        );
+    } catch (error) {
+        console.log(error);
+    }
+    if (returnObjFaunaGetCurve.data.length !== 0) {
+        pool = returnObjFaunaGetCurve.data[0];
+    } else {
+        return false;
     }
 
     console.log("-- Pool name: " + pool.name);
@@ -209,6 +205,10 @@ const updateCurvePool = async (fund) => {
     } catch (error) {
         console.log("Could nt update pool data ", error);
     }
+
+    console.log("-- Done with pool " + poolAddr);
+    console.log("--");
+    console.log("--");
 };
 
 module.exports.updateCurvePool = updateCurvePool;

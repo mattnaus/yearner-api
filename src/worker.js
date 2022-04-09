@@ -31,6 +31,17 @@ cron.schedule(
     }
 );
 
+cron.schedule(
+    "0 13 * * *",
+    () => {
+        updatePools();
+    },
+    {
+        scheduled: true,
+        timezone: "Asia/Bangkok",
+    }
+);
+
 const update = async () => {
     // grab all funds
     let returnObjFaunaGetFunds;
@@ -58,6 +69,23 @@ const updateTransactions = async () => {
     for (let wallet of wallets.data) {
         for (let fund of wallet.funds) {
             await shared.processTransactionsForWalletPlusFund(wallet.wallet, fund, migrationContract);
+        }
+    }
+};
+
+const updatePools = async () => {
+    let returnObjCurvePools;
+    try {
+        returnObjCurvePools = await client.query(
+            q.Map(q.Paginate(q.Match(q.Index("all_curvepools")), { size: 100 }), q.Lambda("x", q.Get(q.Var("x"))))
+        );
+    } catch (error) {
+        console.log("Problem while fetching Curve pools from db", error);
+    }
+
+    if (returnObjCurvePools.data.length !== 0) {
+        for (let pool of returnObjCurvePools.data) {
+            await shared.updateCurvePool(pool.data.contract);
         }
     }
 };
