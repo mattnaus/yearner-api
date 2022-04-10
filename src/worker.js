@@ -85,7 +85,8 @@ const updatePools = async () => {
 
     if (returnObjCurvePools.data.length !== 0) {
         for (let pool of returnObjCurvePools.data) {
-            await shared.updateCurvePool(pool.data.contract);
+            if (pool.data.chain === "eth" || pool.data.chain === undefined)
+                await shared.updateCurvePool(pool.data.contract);
         }
     }
 };
