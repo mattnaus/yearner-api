@@ -173,7 +173,7 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
             updateTransactions = true;
         } else {
             // connection
-            console.log("connection");
+            //console.log("connection");
         }
     }
 
