@@ -62,7 +62,7 @@ const update = async () => {
 
 const updateTransactions = async () => {
     const wallets = await shared.getAllWallets();
-    const migrationContract = "***REMOVED***";
+    const migrationContract = process.env.MIGRATION_CONTRACT;
 
     if (wallets.data.length === 0) return;
 

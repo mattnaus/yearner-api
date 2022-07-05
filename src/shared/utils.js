@@ -5,7 +5,7 @@ const ApiError = require("../error/ApiError.js");
 const apiErrorHandler = require("../error/api-error-handler.js");
 const EthDater = require("ethereum-block-by-date");
 const { createAlchemyWeb3 } = require("@alch/alchemy-web3");
-const web3 = createAlchemyWeb3("https://eth-mainnet.alchemyapi.io/v2/***REMOVED***");
+const web3 = createAlchemyWeb3("https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY);
 const abiDecoder = require("abi-decoder");
 
 dotenv.config();
@@ -248,7 +248,7 @@ module.exports.updateContract = async (fund) => {
                 module: "contract",
                 action: "getabi",
                 address: fund.data.contract,
-                apikey: "***REMOVED***",
+                apikey: process.env.ETHERSCAN_API_KEY,
             },
         });
 
@@ -739,7 +739,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         console.log("-- Attempting to get IN transfers from " + wallet + " to " + fund.contract);
         getTransfersWalletToFund = await axios({
             method: "post",
-            url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+            url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -771,7 +771,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         for (let trans of transfers) {
             let getTransactionReceipt = await axios({
                 method: "post",
-                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -830,7 +830,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         );
         getTransfersWalletToFund = await axios({
             method: "post",
-            url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+            url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -861,7 +861,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         for (let trans of transfers) {
             let getTransactionReceipt = await axios({
                 method: "post",
-                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -948,7 +948,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         console.log("-- Attempting to get IN transfers from " + wallet + " to " + fund.contract);
         getTransfersWalletToFund = await axios({
             method: "post",
-            url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+            url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -981,7 +981,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         for (let trans of transfers) {
             let getTransactionReceipt = await axios({
                 method: "post",
-                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -1041,7 +1041,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         console.log("-- Attempting to get OUT transfers from " + wallet + " to " + fund.contract);
         getTransfersFundToWalletOUT = await axios({
             method: "post",
-            url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+            url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -1070,7 +1070,7 @@ module.exports.processTransactionsForWalletPlusFund = async (wallet, fund, migra
         for (let trans of transfers) {
             let getTransactionReceipt = await axios({
                 method: "post",
-                url: "https://eth-mainnet.alchemyapi.io/v2/***REMOVED***",
+                url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_KEY,
                 headers: {
                     "Content-Type": "application/json",
                 },

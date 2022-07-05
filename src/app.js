@@ -9,7 +9,7 @@ const abiDecoder = require("abi-decoder");
 dotenv.config();
 
 const { createAlchemyWeb3 } = require("@alch/alchemy-web3");
-const web3 = createAlchemyWeb3("https://eth-mainnet.alchemyapi.io/v2/***REMOVED***");
+const web3 = createAlchemyWeb3("https://eth-mainnet.alchemyapi.io/v2" + process.env.ALCHEMY_KEY);
 const axios = require("axios");
 
 const app = express();
@@ -313,7 +313,7 @@ app.get("/v1/investment/:wallet/:fund", async (req, res, next) => {
 
 /*app.get("/v1/updateWallet/:wallet", async (req, res, next) => {
     const wallet = req.params.wallet.toLowerCase();
-    const migrationContract = "***REMOVED***";
+    const migrationContract = process.env.MIGRATION_CONTRACT;
 
     // verify wallet address is valid
     if (!web3.utils.isAddress(wallet)) {
